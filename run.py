@@ -8,7 +8,9 @@ from telegram.ext import CommandHandler, MessageHandler, Updater, Filters, Conve
 def start(update, context):
     # Define keyboard choices
     choices = [
-        [telegram.KeyboardButton("/Vehicle_physical_damage")]
+        [telegram.KeyboardButton("/Vehicle_physical_damage")],
+        [telegram.KeyboardButton("/Vehicle_unable_to_start")],
+        [telegram.KeyboardButton("/Vehicle_tire_issue")]
     ]
     keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
 
@@ -16,7 +18,9 @@ def start(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id, parse_mode="MarkdownV2", reply_markup=keyboard_markup,
                              text="Hello there, what vehicle faults are you reporting?\n"
                                   "Tap the following commands to begin:\n"
-                                  "1\.\) /Vehicle\_physical\_damage")
+                                  "1\.\) /Vehicle\_physical\_damage\n"
+                                  "2\.\) /Vehicle\_unable\_to\_start\n"
+                                  "3\.\) /Vehicle\_tire\_issue")
 
 
 start_handler = CommandHandler('start', start)
@@ -28,7 +32,7 @@ def vehicle_physical_damage(update, context):
     # Prompt user
     update.message.reply_text("What physical damage did the vehicle sustain?")
 
-    return 1
+    return 2
 
 
 vehicle_physical_damage_handler = CommandHandler('Vehicle_physical_damage', vehicle_physical_damage)
@@ -38,31 +42,41 @@ def get_physical_damage(update, context):
     damage = update.message.text
     context.user_data["physical_damage"] = damage
 
-    if len(damage) < 4:
-        update.message.reply_text("Please provide more details")
-        return vehicle_physical_damage(update, context)
+    update.message.reply_text("May I know your name?")
 
-    update.message.reply_text("Alright, May I know your name?")
-
-    return 2
+    return 0
 
 
 def get_name(update, context):
     name = update.message.text
     context.user_data["name"] = name
 
+    update.message.reply_text("What is the vehicle license plate number?")
+
+    return 1
+
+
+def get_vehicle_mid(update, context):
+    mid = update.message.text
+    context.user_data["mid"] = mid
+
     print(context.user_data["physical_damage"])
     print(context.user_data["name"])
+    print(context.user_data["mid"])
 
     return ConversationHandler.END
 
 
 # Error message for invalid commands
-def error_message(update, context):
+def error_command(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id, text="Sorry, I didn't understand that command.")
 
 
-error_handler = MessageHandler(Filters.command, error_message)
+error_command_handler = MessageHandler(Filters.command, error_command)
+
+
+def error_insufficient_information(update, context):
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Invalid. Please provide more information.")
 
 
 def main():
@@ -73,10 +87,16 @@ def main():
     conv_handler = ConversationHandler(
         entry_points=[vehicle_physical_damage_handler],
         states={
-            1: [MessageHandler(Filters.text, get_physical_damage)],
-            2: [MessageHandler(Filters.text, get_name)]
+            0: [MessageHandler(Filters.text, get_name)],
+            1: [MessageHandler(Filters.regex(r'[1-9]+MID$'), get_vehicle_mid)],
+            2: [MessageHandler((Filters.text & ~Filters.command), get_physical_damage)]
         },
-        fallbacks=[]
+        fallbacks=[
+            # Match commands
+            MessageHandler(Filters.command, error_command),
+            # Regex to match any character below 4 character count
+            MessageHandler(Filters.regex(r'^.{1,4}$'), error_insufficient_information)
+        ]
     )
 
     # Add handlers
