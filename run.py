@@ -133,18 +133,22 @@ def get_vehicle_mid(update, context):
     keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
 
     # Let user check entered details before sending
-    update.message.reply_text(f'Name: {context.user_data["name"]}\n'
-                              f'Physical damage: {context.user_data["physical_damage"]}\n'
-                              f'License plate number: {context.user_data["mid"]}',
-                              reply_markup=keyboard_markup)
+    message = update.message.reply_text(f'*Name*: {context.user_data["name"]}\n'
+                                        f'*License plate number*: {context.user_data["mid"]}\n'
+                                        f'*Issue*: {f"Vehicle Physical Damage" if "physical_damage" in context.user_data else "Vehicle unable to start" if "unable_start_type" in context.user_data else "Vehicle tire issue"}'
+                                        f' \({context.user_data["physical_damage"] if "physical_damage" in context.user_data else context.user_data["unable_start_type"] if "unable_start_type" in context.user_data else context.user_data["unable_start_type"]}\)',
+                                        reply_markup=keyboard_markup, parse_mode="MarkdownV2")
 
     update.message.reply_text("Is this correct? (y/n)")
+
+    # Save message object for later use
+    context.user_data["issue_summary"] = message
 
     return 2
 
 
+# Sending user information & damage details to MTline personnel
 def send_details_to_mt_line(update, context):
-    print(context.user_data.items())
     confirmation = update.message.text.lower()
     if confirmation in ["y", "yes"]:
         update.message.reply_text("Sending information to MTLine personnel")
@@ -152,9 +156,8 @@ def send_details_to_mt_line(update, context):
         # Send information to specific people
         for chat_id in [814323433]:
             updater.bot.send_message(chat_id=chat_id,
-                                     text=f'Name: {context.user_data["name"]}\n'
-                                          f'Physical damage: {context.user_data["physical_damage"]}\n'
-                                          f'License plate number: {context.user_data["mid"]}')
+                                     text=context.user_data["issue_summary"].text_markdown_v2,
+                                     parse_mode="MarkdownV2")
     else:
         # Exit conversation
         update.message.reply_text("Cancelled")
