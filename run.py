@@ -1,6 +1,7 @@
 import os
 import re
 import telegram
+import pytz
 from telegram.ext import CommandHandler, MessageHandler, Updater, Filters, ConversationHandler
 
 # Define & initialize bot
@@ -95,7 +96,7 @@ def vehicle_tire_issue(update, context):
     # Prompt user
     update.message.reply_text("What happen to the tire?", reply_markup=keyboard_markup)
 
-    return 6
+    return 7
 
 
 vehicle_tire_issue_handler = CommandHandler('vehicle_tire_issue', vehicle_tire_issue)
@@ -107,7 +108,7 @@ def get_vehicle_tire_issue_type(update, context):
 
     update.message.reply_text("May I know your name?")
 
-    return 7
+    return 0
 
 
 # Get user information stage
@@ -136,7 +137,7 @@ def get_vehicle_mid(update, context):
     message = update.message.reply_text(f'*Name*: {context.user_data["name"]}\n'
                                         f'*License plate number*: {context.user_data["mid"]}\n'
                                         f'*Issue*: {f"Vehicle Physical Damage" if "physical_damage" in context.user_data else "Vehicle unable to start" if "unable_start_type" in context.user_data else "Vehicle tire issue"}'
-                                        f' \({context.user_data["physical_damage"] if "physical_damage" in context.user_data else context.user_data["unable_start_type"] if "unable_start_type" in context.user_data else context.user_data["unable_start_type"]}\)',
+                                        f' \({context.user_data["physical_damage"] if "physical_damage" in context.user_data else context.user_data["unable_start_type"] if "unable_start_type" in context.user_data else context.user_data["tire_issue_type"]}\)',
                                         reply_markup=keyboard_markup, parse_mode="MarkdownV2")
 
     update.message.reply_text("Is this correct? (y/n)")
@@ -156,11 +157,16 @@ def send_details_to_mt_line(update, context):
         # Send information to specific people
         for chat_id in [814323433]:
             updater.bot.send_message(chat_id=chat_id,
-                                     text=context.user_data["issue_summary"].text_markdown_v2,
+                                     text=f'*From user*: {update.message.from_user["first_name"]} {update.message.from_user["last_name"]} \(@{update.message.from_user["username"]}\)\n'
+                                          f'*Datetime*: {context.user_data["issue_summary"].date.astimezone(pytz.timezone("Singapore")).strftime("%d/%m/%Y, %H:%M:%S")}\n'
+                                          f'{context.user_data["issue_summary"].text_markdown_v2}',
                                      parse_mode="MarkdownV2")
     else:
         # Exit conversation
         update.message.reply_text("Cancelled")
+
+    # Clear userdata
+    context.user_data.clear()
 
     return ConversationHandler.END
 
@@ -176,6 +182,9 @@ error_command_handler = MessageHandler(Filters.command, error_command)
 def error_user_cancelled(update, context):
     # Exit conversation
     context.bot.send_message(chat_id=update.effective_chat.id, text="Cancelled")
+
+    # Clear userdata
+    context.user_data.clear()
 
     return ConversationHandler.END
 
@@ -207,7 +216,7 @@ def main():
             # Unable to start states
             6: [MessageHandler(Filters.regex(re.compile(r'^((Unable to crank)|(Crank but not starting)|(Totally no response))$', re.IGNORECASE)), get_unable_to_start_type)],
             # Tire issue states
-            7: [MessageHandler(Filters.regex(re.compile(r'^((Air leak")|(Flat)|(Burst))$', re.IGNORECASE)), get_vehicle_tire_issue_type)]
+            7: [MessageHandler(Filters.regex(re.compile(r'^((Air leak)|(Flat)|(Burst))$', re.IGNORECASE)), get_vehicle_tire_issue_type)]
         },
         fallbacks=[
             # User cancelled command
