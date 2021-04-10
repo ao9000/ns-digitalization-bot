@@ -1,4 +1,5 @@
 import os
+import re
 import telegram
 from telegram.ext import CommandHandler, MessageHandler, Updater, Filters, ConversationHandler
 
@@ -31,7 +32,7 @@ start_handler = CommandHandler('start', start)
 
 
 # Vehicle physical damage command
-# Conversation entry point
+# Conversation entry point #1
 def vehicle_physical_damage(update, context):
     # Prompt user
     update.message.reply_text("What physical damage did the vehicle sustain?")
@@ -51,6 +52,26 @@ def get_physical_damage(update, context):
     return 0
 
 
+# Vehicle unable to start command
+# Conversation entry point #2
+def vehicle_unable_to_start(update, context):
+    # Define keyboard choices
+    choices = [
+        [telegram.KeyboardButton("Unable to crank")],
+        [telegram.KeyboardButton("Crank but not starting")],
+        [telegram.KeyboardButton("Totally no response")]
+    ]
+    keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
+
+    # Prompt user
+    update.message.reply_text("What type of problem?", reply_markup=keyboard_markup)
+
+    return -1
+
+
+vehicle_unable_to_start_handler = CommandHandler('Vehicle_unable_to_start', vehicle_unable_to_start)
+
+
 # Get user information stage
 def get_name(update, context):
     name = update.message.text
@@ -65,10 +86,19 @@ def get_vehicle_mid(update, context):
     mid = update.message.text
     context.user_data["mid"] = mid
 
+    # Define keyboard choices
+    choices = [
+        [telegram.KeyboardButton("Yes")],
+        [telegram.KeyboardButton("No")]
+    ]
+
+    keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
+
     # Let user check entered details before sending
     update.message.reply_text(f'Name: {context.user_data["name"]}\n'
                               f'Physical damage: {context.user_data["physical_damage"]}\n'
-                              f'License plate number: {context.user_data["mid"]}')
+                              f'License plate number: {context.user_data["mid"]}',
+                              reply_markup=keyboard_markup)
 
     update.message.reply_text("Is this correct? (y/n)")
 
@@ -78,8 +108,9 @@ def get_vehicle_mid(update, context):
 def send_details_to_mt_line(update, context):
     confirmation = update.message.text.lower()
     if confirmation in ["y", "yes"]:
-        # Send information to specific people
         update.message.reply_text("Sending information to MTLine personnel")
+
+        # Send information to specific people
         for chat_id in [814323433]:
             updater.bot.send_message(chat_id=chat_id,
                                      text=f'Name: {context.user_data["name"]}\n'
@@ -93,38 +124,56 @@ def send_details_to_mt_line(update, context):
 
 # Error messages
 def error_command(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="Sorry, I didn't understand that command.")
+    update.message.reply_text("Sorry, I didn't understand that command")
 
 
 error_command_handler = MessageHandler(Filters.command, error_command)
 
 
-def error_insufficient_information(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="Invalid. Please provide more information.")
+def error_user_cancelled(update, context):
+    # Exit conversation
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Cancelled")
+
+    return ConversationHandler.END
+
+
+def error_insufficient_input(update, context):
+    update.message.reply_text("Invalid. Please provide more information")
+    update.message.reply_text("Type /exit to cancel this conversation")
+
+
+def error_invalid_input(update, context):
+    update.message.reply_text("Invalid. Please provide a valid input")
+    update.message.reply_text("Type /exit to cancel this conversation")
 
 
 def main():
     conv_handler = ConversationHandler(
-        entry_points=[vehicle_physical_damage_handler],
+        entry_points=[vehicle_physical_damage_handler, vehicle_unable_to_start_handler],
         states={
+            # Gathering user information states
             0: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_name)],
-            1: [MessageHandler(Filters.regex(r'([1-9]+MID)$'), get_vehicle_mid)],
-            2: [MessageHandler(Filters.text, send_details_to_mt_line)],
+            1: [MessageHandler(Filters.regex(re.compile(r'^([1-9]+MID)$', re.IGNORECASE)), get_vehicle_mid)],
+            2: [MessageHandler((Filters.text & ~Filters.command & Filters.regex(re.compile(r'^(Yes|Y|No|N)$', re.IGNORECASE))), send_details_to_mt_line)],
+            # Physical damage states
             5: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_physical_damage)]
         },
         fallbacks=[
-            # Match commands
-            MessageHandler(Filters.command, error_command),
+            # User cancelled command
+            MessageHandler((Filters.command & Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_user_cancelled),
             # Regex to match any character below 4 character count
-            MessageHandler(Filters.regex(r'^.{1,4}$'), error_insufficient_information)
+            MessageHandler(Filters.regex(r'^.{1,4}$'), error_insufficient_input),
+            # Match other commands
+            MessageHandler((Filters.command & ~Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_command),
+            # Match other invalid inputs
+            MessageHandler((Filters.text & ~Filters.command), error_invalid_input)
         ]
     )
 
     # Add handlers
     dispatcher.add_handler(conv_handler)
     dispatcher.add_handler(start_handler)
-    dispatcher.add_handler(CommandHandler("send", send_details_to_mt_line))
-    # dispatcher.add_handler(error_handler)
+    # dispatcher.add_handler(error_command_handler)
 
     # Start bot, stop when interrupted
     updater.start_polling()
