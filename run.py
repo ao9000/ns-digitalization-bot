@@ -2,10 +2,11 @@ import os
 import re
 import telegram
 import pytz
-from telegram.ext import CommandHandler, MessageHandler, Updater, Filters, ConversationHandler
+from telegram.ext import CommandHandler, MessageHandler, Updater, Filters, ConversationHandler, PicklePersistence
+
 
 # Define & initialize bot
-updater = Updater(token=os.getenv("bot_token"), use_context=True)
+updater = Updater(token=os.getenv("bot_token"), use_context=True, persistence=PicklePersistence(filename='data'))
 dispatcher = updater.dispatcher
 
 
@@ -16,7 +17,8 @@ def start(update, context):
     choices = [
         [telegram.KeyboardButton("/Vehicle_physical_damage")],
         [telegram.KeyboardButton("/Vehicle_unable_to_start")],
-        [telegram.KeyboardButton("/Vehicle_tire_issue")]
+        [telegram.KeyboardButton("/Vehicle_tire_issue")],
+        [telegram.KeyboardButton("/history")]
     ]
     keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
 
@@ -30,6 +32,19 @@ def start(update, context):
 
 
 start_handler = CommandHandler('start', start)
+
+
+# History command
+def history(update, context):
+    separator = "\n"+("\-"*80)+"\n"
+    if "history" in context.bot_data:
+        context.bot.send_message(chat_id=update.effective_chat.id, parse_mode="MarkdownV2",
+                                 text=f'{f"{separator}".join(message.text_markdown_v2 for message in context.bot_data["history"])}')
+    else:
+        context.bot.send_message(chat_id=update.effective_chat.id, text='Empty, go ahead and submit an issue and it will show up here')
+
+
+history_handler = CommandHandler('history', history)
 
 
 # Vehicle physical damage command
@@ -156,11 +171,17 @@ def send_details_to_mt_line(update, context):
 
         # Send information to specific people
         for chat_id in [814323433]:
-            updater.bot.send_message(chat_id=chat_id,
-                                     text=f'*From user*: {update.message.from_user["first_name"]} {update.message.from_user["last_name"]} \(@{update.message.from_user["username"]}\)\n'
-                                          f'*Datetime*: {context.user_data["issue_summary"].date.astimezone(pytz.timezone("Singapore")).strftime("%d/%m/%Y, %H:%M:%S")}\n'
-                                          f'{context.user_data["issue_summary"].text_markdown_v2}',
-                                     parse_mode="MarkdownV2")
+            message = updater.bot.send_message(chat_id=chat_id,
+                                               text=f'*Datetime*: {context.user_data["issue_summary"].date.astimezone(pytz.timezone("Singapore")).strftime("%d/%m/%Y, %H:%M:%S")}\n'
+                                                    f'*From user*: {update.message.from_user["first_name"]} {update.message.from_user["last_name"]} \(@{update.message.from_user["username"]}\)\n'
+                                                    f'{context.user_data["issue_summary"].text_markdown_v2}',
+                                               parse_mode="MarkdownV2")
+
+        # Save message into history
+        if "history" in context.bot_data:
+            context.bot_data["history"].append(message)
+        else:
+            context.bot_data["history"] = [message]
     else:
         # Exit conversation
         update.message.reply_text("Cancelled")
@@ -172,11 +193,11 @@ def send_details_to_mt_line(update, context):
 
 
 # Error messages
-def error_command(update, context):
-    update.message.reply_text("Sorry, I didn't understand that command")
+def error_command_general(update, context):
+    update.message.reply_text("Invalid. Please provide a valid command")
 
 
-error_command_handler = MessageHandler(Filters.command, error_command)
+error_command_general_handler = MessageHandler(Filters.command, error_command_general)
 
 
 def error_user_cancelled(update, context):
@@ -196,6 +217,11 @@ def error_insufficient_input(update, context):
 
 def error_invalid_input(update, context):
     update.message.reply_text("Invalid. Please provide a valid input")
+    update.message.reply_text("Type /exit to cancel this conversation")
+
+
+def error_command_input(update, context):
+    update.message.reply_text("Invalid. Please provide a valid command")
     update.message.reply_text("Type /exit to cancel this conversation")
 
 
@@ -224,7 +250,7 @@ def main():
             # Regex to match any character below 4 character count
             MessageHandler(Filters.regex(r'^.{1,4}$'), error_insufficient_input),
             # Match other commands
-            MessageHandler((Filters.command & ~Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_command),
+            MessageHandler((Filters.command & ~Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_command_input),
             # Match other invalid inputs
             MessageHandler((Filters.text & ~Filters.command), error_invalid_input)
         ]
@@ -233,7 +259,8 @@ def main():
     # Add handlers
     dispatcher.add_handler(conv_handler)
     dispatcher.add_handler(start_handler)
-    # dispatcher.add_handler(error_command_handler)
+    dispatcher.add_handler(history_handler)
+    dispatcher.add_handler(error_command_general_handler)
 
     # Start bot, stop when interrupted
     updater.start_polling()
