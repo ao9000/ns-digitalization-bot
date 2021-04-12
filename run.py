@@ -5,9 +5,28 @@ import pytz
 from telegram.ext import CommandHandler, MessageHandler, Updater, Filters, ConversationHandler, PicklePersistence
 
 
+class EnvironmentVariableError(Exception):
+    """Triggered when environment variables are not loaded before execution of script"""
+    pass
+
+
+environment_variables = ["bot_token", "recipient_list"]
+
+# Check if environment variables are loaded
+if any(item not in os.environ for item in environment_variables):
+    raise EnvironmentVariableError("Environment variables not loaded")
+
+# Check if environment variables are not empty
+if any(item for item in environment_variables if not os.getenv(item)):
+    raise EnvironmentVariableError("Environment variables are empty")
+
+
 # Define & initialize bot
 updater = Updater(token=os.getenv("bot_token"), use_context=True, persistence=PicklePersistence(filename='data'))
 dispatcher = updater.dispatcher
+
+# Format recipient list
+recipient_list = os.getenv('recipient_list').split(",")
 
 
 # Commands
@@ -170,7 +189,7 @@ def send_details_to_mt_line(update, context):
         update.message.reply_text("Sending information to MTLine personnel")
 
         # Send information to specific people
-        for chat_id in [814323433]:
+        for chat_id in recipient_list:
             message = updater.bot.send_message(chat_id=chat_id,
                                                text=f'*Datetime*: {context.user_data["issue_summary"].date.astimezone(pytz.timezone("Singapore")).strftime("%d/%m/%Y, %H:%M:%S")}\n'
                                                     f'*From user*: {update.message.from_user["first_name"]} {update.message.from_user["last_name"]} \(@{update.message.from_user["username"]}\)\n'
