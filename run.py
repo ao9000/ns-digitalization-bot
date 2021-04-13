@@ -2,6 +2,7 @@ import os
 import re
 import telegram
 import pytz
+import logging
 from telegram.ext import CommandHandler, MessageHandler, Updater, Filters, ConversationHandler, PicklePersistence
 
 
@@ -10,9 +11,12 @@ class EnvironmentVariableError(Exception):
     pass
 
 
-environment_variables = ["bot_token", "recipient_list"]
+# Define logging level
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # Check if environment variables are loaded
+environment_variables = ["bot_token", "recipient_list"]
+
 if any(item not in os.environ for item in environment_variables):
     raise EnvironmentVariableError("Environment variables not loaded")
 
@@ -27,6 +31,7 @@ dispatcher = updater.dispatcher
 
 # Format recipient list
 recipient_list = os.getenv('recipient_list').split(",")
+print(f'{len(recipient_list)} recipients detected')
 
 
 # Commands
@@ -190,11 +195,15 @@ def send_details_to_mt_line(update, context):
 
         # Send information to specific people
         for chat_id in recipient_list:
-            message = updater.bot.send_message(chat_id=chat_id,
-                                               text=f'*Datetime*: {context.user_data["issue_summary"].date.astimezone(pytz.timezone("Singapore")).strftime("%d/%m/%Y, %H:%M:%S")}\n'
-                                                    f'*From user*: {update.message.from_user["first_name"]} {update.message.from_user["last_name"]} \(@{update.message.from_user["username"]}\)\n'
-                                                    f'{context.user_data["issue_summary"].text_markdown_v2}',
-                                               parse_mode="MarkdownV2")
+            try:
+                message = updater.bot.send_message(chat_id=chat_id,
+                                                   text=f'*Datetime*: {context.user_data["issue_summary"].date.astimezone(pytz.timezone("Singapore")).strftime("%d/%m/%Y, %H:%M:%S")}\n'
+                                                        f'*From user*: {update.message.from_user["first_name"]} {update.message.from_user["last_name"]} \(@{update.message.from_user["username"]}\)\n'
+                                                        f'{context.user_data["issue_summary"].text_markdown_v2}',
+                                                   parse_mode="MarkdownV2")
+            except telegram.error.BadRequest:
+                # User have not initialize a chat with bot yet
+                print(f"User: {chat_id} have not talked to the bot before. Skipping.")
 
         # Save message into history
         if "history" in context.bot_data:
