@@ -14,6 +14,8 @@ class EnvironmentVariableError(Exception):
 # Define logging level
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
+logging.info("Checking environment variables")
+
 # Check if environment variables are loaded
 environment_variables = ["bot_token", "recipient_list"]
 
@@ -31,18 +33,18 @@ dispatcher = updater.dispatcher
 
 # Format recipient list
 recipient_list = os.getenv('recipient_list').split(",")
-print(f'{len(recipient_list)} recipients detected')
+logging.info(f'Recipient list loaded, {len(recipient_list)} recipients detected')
 
 
 # Commands
 # Start command
 def start(update, context):
+    logging.info(f'Start command was called by {update.effective_user.name}')
     # Define keyboard choices
     choices = [
         [telegram.KeyboardButton("/Vehicle_physical_damage")],
         [telegram.KeyboardButton("/Vehicle_unable_to_start")],
-        [telegram.KeyboardButton("/Vehicle_tire_issue")],
-        [telegram.KeyboardButton("/history")]
+        [telegram.KeyboardButton("/Vehicle_tire_issue")]
     ]
     keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
 
@@ -68,7 +70,7 @@ def history(update, context):
         context.bot.send_message(chat_id=update.effective_chat.id, text='Empty, go ahead and submit an issue and it will show up here')
 
 
-history_handler = CommandHandler('history', history)
+history_handler = CommandHandler('history', history, Filters.user(user_id=set(int(user_id) for user_id in recipient_list)))
 
 
 # Vehicle physical damage command
@@ -194,6 +196,7 @@ def send_details_to_mt_line(update, context):
         update.message.reply_text("Sending information to MTLine personnel")
 
         # Send information to specific people
+        message = None
         for chat_id in recipient_list:
             try:
                 message = updater.bot.send_message(chat_id=chat_id,
@@ -205,11 +208,12 @@ def send_details_to_mt_line(update, context):
                 # User have not initialize a chat with bot yet
                 print(f"User: {chat_id} have not talked to the bot before. Skipping.")
 
-        # Save message into history
-        if "history" in context.bot_data:
-            context.bot_data["history"].append(message)
-        else:
-            context.bot_data["history"] = [message]
+        if message:
+            # Save message into history
+            if "history" in context.bot_data:
+                context.bot_data["history"].append(message)
+            else:
+                context.bot_data["history"] = [message]
     else:
         # Exit conversation
         update.message.reply_text("Cancelled")
