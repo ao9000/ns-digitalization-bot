@@ -15,7 +15,6 @@ class EnvironmentVariableError(Exception):
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 logging.info("Checking environment variables")
-
 # Check if environment variables are loaded
 environment_variables = ["bot_token", "recipient_list"]
 
@@ -65,7 +64,7 @@ def history(update, context):
     separator = "\n"+("\-"*80)+"\n"
     if "history" in context.bot_data:
         context.bot.send_message(chat_id=update.effective_chat.id, parse_mode="MarkdownV2",
-                                 text=f'{f"{separator}".join(message.text_markdown_v2 for message in context.bot_data["history"])}')
+                                 text=f'{f"{separator}".join(message for message in context.bot_data["history"])}')
     else:
         context.bot.send_message(chat_id=update.effective_chat.id, text='Empty, go ahead and submit an issue and it will show up here')
 
@@ -89,7 +88,7 @@ def get_physical_damage(update, context):
     damage = update.message.text
     context.user_data["physical_damage"] = damage
 
-    update.message.reply_text("May I know your name?")
+    update.message.reply_text("What is the vehicle license plate number?")
 
     return 0
 
@@ -118,7 +117,7 @@ def get_unable_to_start_type(update, context):
     unable_start_type = update.message.text
     context.user_data["unable_start_type"] = unable_start_type
 
-    update.message.reply_text("May I know your name?")
+    update.message.reply_text("What is the vehicle license plate number?")
 
     return 0
 
@@ -147,21 +146,12 @@ def get_vehicle_tire_issue_type(update, context):
     tire_issue_type = update.message.text
     context.user_data["tire_issue_type"] = tire_issue_type
 
-    update.message.reply_text("May I know your name?")
+    update.message.reply_text("What is the vehicle license plate number?")
 
     return 0
 
 
 # Get user information stage
-def get_name(update, context):
-    name = update.message.text
-    context.user_data["name"] = name
-
-    update.message.reply_text("What is the vehicle license plate number?")
-
-    return 1
-
-
 def get_vehicle_mid(update, context):
     mid = update.message.text
     context.user_data["mid"] = mid
@@ -175,8 +165,7 @@ def get_vehicle_mid(update, context):
     keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
 
     # Let user check entered details before sending
-    message = update.message.reply_text(f'*Name*: {context.user_data["name"]}\n'
-                                        f'*License plate number*: {context.user_data["mid"]}\n'
+    message = update.message.reply_text(f'*License plate number*: {context.user_data["mid"]}\n'
                                         f'*Issue*: {f"Vehicle Physical Damage" if "physical_damage" in context.user_data else "Vehicle unable to start" if "unable_start_type" in context.user_data else "Vehicle tire issue"}'
                                         f' \({context.user_data["physical_damage"] if "physical_damage" in context.user_data else context.user_data["unable_start_type"] if "unable_start_type" in context.user_data else context.user_data["tire_issue_type"]}\)',
                                         reply_markup=keyboard_markup, parse_mode="MarkdownV2")
@@ -186,7 +175,7 @@ def get_vehicle_mid(update, context):
     # Save message object for later use
     context.user_data["issue_summary"] = message
 
-    return 2
+    return 1
 
 
 # Sending user information & damage details to MTline personnel
@@ -195,25 +184,24 @@ def send_details_to_mt_line(update, context):
     if confirmation in ["y", "yes"]:
         update.message.reply_text("Sending information to MTLine personnel")
 
+        # Construct message
+        text = f'*Datetime*: {context.user_data["issue_summary"].date.astimezone(pytz.timezone("Singapore")).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
+               f'*From user*: {update.message.from_user["first_name"]} {update.message.from_user["last_name"]} \(@{update.message.from_user["username"]}\)\n'\
+               f'{context.user_data["issue_summary"].text_markdown_v2}'
+
         # Send information to specific people
-        message = None
         for chat_id in recipient_list:
             try:
-                message = updater.bot.send_message(chat_id=chat_id,
-                                                   text=f'*Datetime*: {context.user_data["issue_summary"].date.astimezone(pytz.timezone("Singapore")).strftime("%d/%m/%Y, %H:%M:%S")}\n'
-                                                        f'*From user*: {update.message.from_user["first_name"]} {update.message.from_user["last_name"]} \(@{update.message.from_user["username"]}\)\n'
-                                                        f'{context.user_data["issue_summary"].text_markdown_v2}',
-                                                   parse_mode="MarkdownV2")
+                updater.bot.send_message(chat_id=chat_id, text=text, parse_mode="MarkdownV2")
             except telegram.error.BadRequest:
                 # User have not initialize a chat with bot yet
                 print(f"User: {chat_id} have not talked to the bot before. Skipping.")
 
-        if message:
-            # Save message into history
-            if "history" in context.bot_data:
-                context.bot_data["history"].append(message)
-            else:
-                context.bot_data["history"] = [message]
+        # Save message into history
+        if "history" in context.bot_data:
+            context.bot_data["history"].append(text)
+        else:
+            context.bot_data["history"] = [text]
     else:
         # Exit conversation
         update.message.reply_text("Cancelled")
@@ -266,9 +254,8 @@ def main():
         ],
         states={
             # Gathering user information states
-            0: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_name)],
-            1: [MessageHandler(Filters.regex(re.compile(r'^([1-9]+MID)$', re.IGNORECASE)), get_vehicle_mid)],
-            2: [MessageHandler((Filters.text & ~Filters.command & Filters.regex(re.compile(r'^(Yes|Y|No|N)$', re.IGNORECASE))), send_details_to_mt_line)],
+            0: [MessageHandler(Filters.regex(re.compile(r'^([1-9]+MID)$', re.IGNORECASE)), get_vehicle_mid)],
+            1: [MessageHandler((Filters.text & ~Filters.command & Filters.regex(re.compile(r'^(Yes|Y|No|N)$', re.IGNORECASE))), send_details_to_mt_line)],
             # Physical damage states
             5: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_physical_damage)],
             # Unable to start states
