@@ -59,14 +59,55 @@ def start(update, context):
 start_handler = CommandHandler('start', start)
 
 
+def PaginationHandlerMeta(func):
+    def PaginationHandler(*args, **kwargs):
+        # Define separator
+        separator = "\n" + ("\-" * 80) + "\n"
+
+        # Get response
+        response = func(*args, **kwargs)
+
+        # Find update & context in parameters
+        for arg in args:
+            if isinstance(arg, telegram.update.Update):
+                update = arg
+            elif isinstance(arg, telegram.ext.callbackcontext.CallbackContext):
+                context = arg
+
+        if len(f"{separator}".join(part for part in response)) > 4096:
+            # Construct paginated response
+            start_index = 0
+            for end_index, _ in enumerate(response, start=1):
+                if len(f"{separator}".join(part for part in response[start_index:end_index])) > 4096:
+                    # Remove last element and send
+                    update.message.reply_text(parse_mode="MarkdownV2", text=f"{separator}".join(part for part in response[start_index:end_index - 1]))
+
+                    # Check if last element
+                    if end_index == len(response):
+                        # Just send out last element
+                        update.message.reply_text(parse_mode="MarkdownV2", text=response[end_index - 1])
+                    else:
+                        # Go back one index
+                        start_index = end_index-1
+
+                elif end_index == len(response):
+                    # Last element
+                    update.message.reply_text(parse_mode="MarkdownV2", text=f"{separator}".join(part for part in response[start_index:end_index]))
+        else:
+            # No need to paginate
+            update.message.reply_text(parse_mode="MarkdownV2", text=f"{separator}".join(part for part in response))
+
+    return PaginationHandler
+
+
 # History command
+@PaginationHandlerMeta
 def history(update, context):
-    separator = "\n"+("\-"*80)+"\n"
+    context.bot_data["history"] = ["1"*4096, "2"*4095]
     if "history" in context.bot_data:
-        context.bot.send_message(chat_id=update.effective_chat.id, parse_mode="MarkdownV2",
-                                 text=f'{f"{separator}".join(message for message in context.bot_data["history"])}')
+        return context.bot_data["history"]
     else:
-        context.bot.send_message(chat_id=update.effective_chat.id, text='Empty, go ahead and submit an issue and it will show up here')
+        return ["Empty, go ahead and submit an issue and it will show up here"]
 
 
 history_handler = CommandHandler('history', history, Filters.user(user_id=set(int(user_id) for user_id in recipient_list)))
