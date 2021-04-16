@@ -6,29 +6,30 @@ import logging
 from telegram.ext import CommandHandler, MessageHandler, Updater, Filters, ConversationHandler, PicklePersistence
 # Define logging level
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-
-
 logging.info("Initializing bot")
 
 
+# Define custom error exception class
 class EnvironmentVariableError(Exception):
     """Triggered when environment variables are not loaded before execution of script"""
     pass
 
 
+# Helper function for formatting user data
 def get_user_details(update):
     return f"UserID: {update.effective_user.id}, Name: {update.effective_user.first_name} " \
            f"{update.effective_user.last_name}, Username: {update.effective_user.username}"
 
 
-logging.info("Checking environment variables")
 # Check if environment variables are loaded
+logging.info("Checking environment variables")
 environment_variables = ["bot_token", "recipient_list"]
+# Check if environment variables are loaded
 if any(item not in os.environ for item in environment_variables):
     logging.exception("Environment variables not loaded")
     raise EnvironmentVariableError("Environment variables not loaded")
 
-# Check if environment variables are not empty
+# Check if environment variables are empty
 if any(item for item in environment_variables if not os.getenv(item)):
     logging.exception("Environment variables are empty")
     raise EnvironmentVariableError("Environment variables are empty")
@@ -47,6 +48,7 @@ logging.info(f'{len(recipient_list)} recipients loaded')
 # Start command
 def start(update, context):
     logging.info(f'{get_user_details(update)}, Action: /start')
+
     # Define keyboard choices
     choices = [
         [telegram.KeyboardButton("/Vehicle_physical_damage")],
@@ -55,7 +57,7 @@ def start(update, context):
     ]
     keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
 
-    # Send message
+    # Send message with keyboard template
     context.bot.send_message(chat_id=update.effective_chat.id, parse_mode="MarkdownV2", reply_markup=keyboard_markup,
                              text="Hello there, what vehicle faults are you reporting?\n"
                                   "Tap the following commands to begin:\n"
@@ -67,6 +69,7 @@ def start(update, context):
 start_handler = CommandHandler('start', start)
 
 
+# Decorator for paginating replies
 def PaginationHandlerMeta(func):
     def PaginationHandler(*args, **kwargs):
         # Define separator
@@ -136,12 +139,14 @@ vehicle_physical_damage_handler = CommandHandler('Vehicle_physical_damage', vehi
 
 
 def get_physical_damage(update, context):
+    # Save user input
     damage = update.message.text
     context.user_data["physical_damage"] = damage
 
     logging.info(f'{get_user_details(update)}, Input: {damage}')
 
-    update.message.reply_text("What is the vehicle license plate number?")
+    # Prompt user
+    update.message.reply_text("What is the vehicle MID number? (Digits only)")
 
     return 0
 
@@ -169,12 +174,14 @@ vehicle_unable_to_start_handler = CommandHandler('Vehicle_unable_to_start', vehi
 
 
 def get_unable_to_start_type(update, context):
+    # Save user input
     unable_start_type = update.message.text
     context.user_data["unable_start_type"] = unable_start_type
 
     logging.info(f'{get_user_details(update)}, Input: {unable_start_type}')
 
-    update.message.reply_text("What is the vehicle license plate number?")
+    # Prompt user
+    update.message.reply_text("What is the vehicle MID number? (Digits only)")
 
     return 0
 
@@ -202,18 +209,21 @@ vehicle_tire_issue_handler = CommandHandler('vehicle_tire_issue', vehicle_tire_i
 
 
 def get_vehicle_tire_issue_type(update, context):
+    # Save user input
     tire_issue_type = update.message.text
     context.user_data["tire_issue_type"] = tire_issue_type
 
     logging.info(f'{get_user_details(update)}, Input: {tire_issue_type}')
 
-    update.message.reply_text("What is the vehicle license plate number?")
+    # Prompt user
+    update.message.reply_text("What is the vehicle MID number? (Digits only)")
 
     return 0
 
 
 # Get user information stage
 def get_vehicle_mid(update, context):
+    # Save user input
     mid = update.message.text
     context.user_data["mid"] = mid
 
@@ -228,11 +238,12 @@ def get_vehicle_mid(update, context):
     keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
 
     # Let user check entered details before sending
-    message = update.message.reply_text(f'*License plate number*: {context.user_data["mid"]}\n'
+    message = update.message.reply_text(f'*Vehicle MID number*: {context.user_data["mid"]}\n'
                                         f'*Issue*: {f"Vehicle Physical Damage" if "physical_damage" in context.user_data else "Vehicle unable to start" if "unable_start_type" in context.user_data else "Vehicle tire issue"}'
                                         f' \({context.user_data["physical_damage"] if "physical_damage" in context.user_data else context.user_data["unable_start_type"] if "unable_start_type" in context.user_data else context.user_data["tire_issue_type"]}\)',
                                         reply_markup=keyboard_markup, parse_mode="MarkdownV2")
 
+    # Prompt user
     update.message.reply_text("Is this correct? (y/n)")
 
     # Save message object for later use
@@ -243,10 +254,12 @@ def get_vehicle_mid(update, context):
 
 # Sending user information & damage details to MTline personnel
 def send_details_to_mt_line(update, context):
+    # Standardise user input
     confirmation = update.message.text.lower()
 
     logging.info(f'{get_user_details(update)}, Input: {confirmation}')
 
+    # Check if user input yes
     if confirmation in ["y", "yes"]:
         update.message.reply_text("Sending information to MTLine personnel")
 
@@ -255,9 +268,10 @@ def send_details_to_mt_line(update, context):
                f'*From user*: {update.message.from_user["first_name"]} {update.message.from_user["last_name"]} \(@{update.message.from_user["username"]}\)\n'\
                f'{context.user_data["issue_summary"].text_markdown_v2}'
 
-        # Send information to specific people
+        # Send information to specific people(s)
         for chat_id in recipient_list:
             try:
+                # Send message
                 updater.bot.send_message(chat_id=chat_id, text=text, parse_mode="MarkdownV2")
                 logging.info(f"Sending issue to User: {chat_id}")
             except telegram.error.BadRequest:
@@ -270,6 +284,8 @@ def send_details_to_mt_line(update, context):
         else:
             context.bot_data["history"] = [text]
     else:
+        logging.info(f'{get_user_details(update)}, Input: No')
+
         # Exit conversation
         update.message.reply_text("Cancelled")
 
@@ -280,6 +296,7 @@ def send_details_to_mt_line(update, context):
 
 
 # Error messages
+# Invalid command (General)
 def error_command_general(update, context):
     logging.info(f'{get_user_details(update)}, Error: Invalid command (General)')
     update.message.reply_text("Invalid. Please provide a valid command\n"
@@ -289,6 +306,7 @@ def error_command_general(update, context):
 error_command_general_handler = MessageHandler(Filters.all, error_command_general)
 
 
+# User cancelled conversation
 def error_user_cancelled(update, context):
     logging.info(f'{get_user_details(update)}, Action: /exit')
 
@@ -301,25 +319,29 @@ def error_user_cancelled(update, context):
     return ConversationHandler.END
 
 
+# User insufficient input
 def error_insufficient_input(update, context):
     logging.info(f'{get_user_details(update)}, Error: Insufficient information provided')
     update.message.reply_text("Invalid. Please provide more information")
     update.message.reply_text("Type /exit to cancel this conversation")
 
 
+# User invalid input
 def error_invalid_input(update, context):
     logging.info(f'{get_user_details(update)}, Error: Incorrect information provided')
     update.message.reply_text("Invalid. Please provide a valid input")
     update.message.reply_text("Type /exit to cancel this conversation")
 
 
+# User invalid command (Conversational)
 def error_command_input(update, context):
-    logging.info(f'{get_user_details(update)}, Error: Invalid command (Conversation)')
+    logging.info(f'{get_user_details(update)}, Error: Invalid command (Conversational)')
     update.message.reply_text("Invalid. Please provide a valid command")
     update.message.reply_text("Type /exit to cancel this conversation")
 
 
 def main():
+    # Define conversation handler
     conv_handler = ConversationHandler(
         entry_points=[
             vehicle_physical_damage_handler,
@@ -328,7 +350,7 @@ def main():
         ],
         states={
             # Gathering user information states
-            0: [MessageHandler(Filters.regex(re.compile(r'^([1-9]+MID)$', re.IGNORECASE)), get_vehicle_mid)],
+            0: [MessageHandler(Filters.regex(r'^[0-9]+$'), get_vehicle_mid)],
             1: [MessageHandler((Filters.text & ~Filters.command & Filters.regex(re.compile(r'^(Yes|Y|No|N)$', re.IGNORECASE))), send_details_to_mt_line)],
             # Physical damage states
             5: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_physical_damage)],
