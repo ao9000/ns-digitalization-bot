@@ -282,7 +282,7 @@ def send_details_to_mt_line(update, context):
             try:
                 # Send message
                 updater.bot.send_message(chat_id=chat_id, text=text, parse_mode="MarkdownV2")
-                logging.info(f"Sending issue to User: {chat_id}")
+                logging.info(f"Sent issue to User: {context.bot.get_chat(chat_id)['first_name']}")
             except telegram.error.BadRequest:
                 # User have not initialize a chat with bot yet
                 logging.warning(f"User: {chat_id} have not talked to the bot before. Skipping.")
