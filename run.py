@@ -4,8 +4,16 @@ import telegram
 import pytz
 import logging
 from telegram.ext import CommandHandler, MessageHandler, Updater, Filters, ConversationHandler, PicklePersistence
-# Define logging level
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+# Define logging settings
+logging_format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+datefmt='%d/%m/%Y, %H:%M:%S'
+handlers = [logging.FileHandler('record.log', mode='a'), logging.StreamHandler()]
+level = logging.INFO
+
+# Initialize logging
+logging.basicConfig(handlers=handlers, format=logging_format, datefmt=datefmt, level=logging.INFO)
+
 logging.info("Initializing bot")
 
 
@@ -17,8 +25,9 @@ class EnvironmentVariableError(Exception):
 
 # Helper function for formatting user data
 def get_user_details(update):
-    return f"UserID: {update.effective_user.id}, Name: {update.effective_user.first_name} " \
-           f"{update.effective_user.last_name}, Username: {update.effective_user.username}"
+    return f'UserID: {update.effective_user.id}, Name: {update.effective_user.first_name}' \
+           f'{f" {update.effective_user.last_name}" if update.effective_user.last_name else ""}' \
+           f'{f", Username: {update.effective_user.username}" if update.effective_user.username else ""}'
 
 
 # Check if environment variables are loaded
@@ -26,12 +35,12 @@ logging.info("Checking environment variables")
 environment_variables = ["bot_token", "recipient_list"]
 # Check if environment variables are loaded
 if any(item not in os.environ for item in environment_variables):
-    logging.exception("Environment variables not loaded")
+    logging.critical("Environment variables not loaded")
     raise EnvironmentVariableError("Environment variables not loaded")
 
 # Check if environment variables are empty
 if any(item for item in environment_variables if not os.getenv(item)):
-    logging.exception("Environment variables are empty")
+    logging.critical("Environment variables are empty")
     raise EnvironmentVariableError("Environment variables are empty")
 
 
@@ -265,7 +274,7 @@ def send_details_to_mt_line(update, context):
 
         # Construct message
         text = f'*Datetime*: {context.user_data["issue_summary"].date.astimezone(pytz.timezone("Singapore")).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
-               f'*From user*: {update.message.from_user["first_name"]} {update.message.from_user["last_name"]} \(@{update.message.from_user["username"]}\)\n'\
+               f'*From user*: {get_user_details(update)}\n'\
                f'{context.user_data["issue_summary"].text_markdown_v2}'
 
         # Send information to specific people(s)
@@ -311,7 +320,8 @@ def error_user_cancelled(update, context):
     logging.info(f'{get_user_details(update)}, Action: /exit')
 
     # Exit conversation
-    context.bot.send_message(chat_id=update.effective_chat.id, text="Cancelled")
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Cancelled\n"
+                                                                    "Type /start to get started")
 
     # Clear userdata
     context.user_data.clear()
