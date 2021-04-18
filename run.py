@@ -156,7 +156,7 @@ def get_physical_damage(update, context):
     logging.info(f'{get_user_details(update)}, Input: {damage}')
 
     # Prompt user
-    update.message.reply_text("What is the vehicle MID number? (Digits only)")
+    update.message.reply_text("What is the vehicle MID number? (Numbers only)")
 
     return 0
 
@@ -191,7 +191,7 @@ def get_unable_to_start_type(update, context):
     logging.info(f'{get_user_details(update)}, Input: {unable_start_type}')
 
     # Prompt user
-    update.message.reply_text("What is the vehicle MID number? (Digits only)")
+    update.message.reply_text("What is the vehicle MID number? (Numbers only)")
 
     return 0
 
@@ -226,7 +226,7 @@ def get_vehicle_tire_issue_type(update, context):
     logging.info(f'{get_user_details(update)}, Input: {tire_issue_type}')
 
     # Prompt user
-    update.message.reply_text("What is the vehicle MID number? (Digits only)")
+    update.message.reply_text("What is the vehicle MID number? (Numbers only)")
 
     return 0
 
