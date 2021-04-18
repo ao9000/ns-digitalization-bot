@@ -6,7 +6,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "I'm alive"
+    return "The telegram bot is running"
 
 
 def run():
