@@ -1,21 +1,33 @@
 import os
 import re
 import telegram
-import pytz
+from pytz import timezone
 import logging
+import datetime
 from telegram.ext import CommandHandler, MessageHandler, Updater, Filters, ConversationHandler, PicklePersistence
 from webserver import keep_alive
 
-# Define logging settings
-logging_format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-datefmt='%d/%m/%Y, %H:%M:%S'
-handlers = [logging.FileHandler('record.log', mode='a'), logging.StreamHandler()]
-level = logging.INFO
-
 # Initialize logging
-logging.basicConfig(handlers=handlers, format=logging_format, datefmt=datefmt, level=logging.INFO)
+# Define timezone
+tz = timezone('Asia/Singapore')
+logging.Formatter.converter = lambda *args: datetime.datetime.now(tz).timetuple()
 
-logging.info("Initializing bot")
+# Create new logger, inherited from root logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%d/%m/%Y, %H:%M:%S')
+
+file_handler = logging.FileHandler('record.log', mode='a')
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(formatter)
+
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+
+logger.addHandler(stream_handler)
+logger.addHandler(file_handler)
+logger.info("Initializing bot")
 
 
 # Define custom error exception class
@@ -32,16 +44,16 @@ def get_user_details(update):
 
 
 # Check if environment variables are loaded
-logging.info("Checking environment variables")
+logger.info("Checking environment variables")
 environment_variables = ["bot_token", "recipient_list"]
 # Check if environment variables are loaded
 if any(item not in os.environ for item in environment_variables):
-    logging.critical("Environment variables not loaded")
+    logger.critical("Environment variables not loaded")
     raise EnvironmentVariableError("Environment variables not loaded")
 
 # Check if environment variables are empty
 if any(item for item in environment_variables if not os.getenv(item)):
-    logging.critical("Environment variables are empty")
+    logger.critical("Environment variables are empty")
     raise EnvironmentVariableError("Environment variables are empty")
 
 
@@ -51,13 +63,13 @@ dispatcher = updater.dispatcher
 
 # Format recipient list
 recipient_list = os.getenv('recipient_list').split(",")
-logging.info(f'{len(recipient_list)} recipients loaded')
+logger.info(f'{len(recipient_list)} recipients loaded')
 
 
 # Commands
 # Start command
 def start(update, context):
-    logging.info(f'{get_user_details(update)}, Action: /start')
+    logger.info(f'{get_user_details(update)}, Action: /start')
 
     # Define keyboard choices
     choices = [
@@ -124,7 +136,7 @@ def PaginationHandlerMeta(func):
 # History command
 @PaginationHandlerMeta
 def history(update, context):
-    logging.info(f'{get_user_details(update)}, Action: /history')
+    logger.info(f'{get_user_details(update)}, Action: /history')
     if "history" in context.bot_data:
         return context.bot_data["history"]
     else:
@@ -137,7 +149,7 @@ history_handler = CommandHandler('history', history, Filters.user(user_id=set(in
 # Vehicle physical damage command
 # Conversation entry point #1
 def vehicle_physical_damage(update, context):
-    logging.info(f'{get_user_details(update)}, Action /Vehicle_physical_damage')
+    logger.info(f'{get_user_details(update)}, Action /Vehicle_physical_damage')
 
     # Prompt user
     update.message.reply_text("What physical damage did the vehicle sustain?")
@@ -153,7 +165,7 @@ def get_physical_damage(update, context):
     damage = update.message.text
     context.user_data["physical_damage"] = damage
 
-    logging.info(f'{get_user_details(update)}, Input: {damage}')
+    logger.info(f'{get_user_details(update)}, Input: {damage}')
 
     # Prompt user
     update.message.reply_text("What is the vehicle MID number? (Numbers only)")
@@ -164,7 +176,7 @@ def get_physical_damage(update, context):
 # Vehicle unable to start command
 # Conversation entry point #2
 def vehicle_unable_to_start(update, context):
-    logging.info(f'{get_user_details(update)}, Action: /Vehicle_unable_to_start')
+    logger.info(f'{get_user_details(update)}, Action: /Vehicle_unable_to_start')
 
     # Define keyboard choices
     choices = [
@@ -188,7 +200,7 @@ def get_unable_to_start_type(update, context):
     unable_start_type = update.message.text
     context.user_data["unable_start_type"] = unable_start_type
 
-    logging.info(f'{get_user_details(update)}, Input: {unable_start_type}')
+    logger.info(f'{get_user_details(update)}, Input: {unable_start_type}')
 
     # Prompt user
     update.message.reply_text("What is the vehicle MID number? (Numbers only)")
@@ -199,7 +211,7 @@ def get_unable_to_start_type(update, context):
 # Vehicle tire issue command
 # Conversation entry point #3
 def vehicle_tire_issue(update, context):
-    logging.info(f'{get_user_details(update)}, Action: /Vehicle_tire_issue')
+    logger.info(f'{get_user_details(update)}, Action: /Vehicle_tire_issue')
 
     # Define keyboard choices
     choices = [
@@ -223,7 +235,7 @@ def get_vehicle_tire_issue_type(update, context):
     tire_issue_type = update.message.text
     context.user_data["tire_issue_type"] = tire_issue_type
 
-    logging.info(f'{get_user_details(update)}, Input: {tire_issue_type}')
+    logger.info(f'{get_user_details(update)}, Input: {tire_issue_type}')
 
     # Prompt user
     update.message.reply_text("What is the vehicle MID number? (Numbers only)")
@@ -237,7 +249,7 @@ def get_vehicle_mid(update, context):
     mid = update.message.text
     context.user_data["mid"] = mid
 
-    logging.info(f'{get_user_details(update)}, Input: {mid}')
+    logger.info(f'{get_user_details(update)}, Input: {mid}')
 
     # Define keyboard choices
     choices = [
@@ -267,14 +279,14 @@ def send_details_to_mt_line(update, context):
     # Standardise user input
     confirmation = update.message.text.lower()
 
-    logging.info(f'{get_user_details(update)}, Input: {confirmation}')
+    logger.info(f'{get_user_details(update)}, Input: {confirmation}')
 
     # Check if user input yes
     if confirmation in ["y", "yes"]:
         update.message.reply_text("Sending information to MTLine personnel")
 
         # Construct message
-        text = f'*Datetime*: {context.user_data["issue_summary"].date.astimezone(pytz.timezone("Singapore")).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
+        text = f'*Datetime*: {context.user_data["issue_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
                f'*From user*: {get_user_details(update)}\n'\
                f'{context.user_data["issue_summary"].text_markdown_v2}'
 
@@ -283,10 +295,10 @@ def send_details_to_mt_line(update, context):
             try:
                 # Send message
                 updater.bot.send_message(chat_id=chat_id, text=text, parse_mode="MarkdownV2")
-                logging.info(f"Sent issue to User: {context.bot.get_chat(chat_id)['first_name']}")
+                logger.info(f"Sent issue to User: {context.bot.get_chat(chat_id)['first_name']}")
             except telegram.error.BadRequest:
                 # User have not initialize a chat with bot yet
-                logging.warning(f"User: {chat_id} have not talked to the bot before. Skipping.")
+                logger.warning(f"User: {chat_id} have not talked to the bot before. Skipping.")
 
         # Save message into history
         if "history" in context.bot_data:
@@ -294,7 +306,7 @@ def send_details_to_mt_line(update, context):
         else:
             context.bot_data["history"] = [text]
     else:
-        logging.info(f'{get_user_details(update)}, Input: No')
+        logger.info(f'{get_user_details(update)}, Input: No')
 
         # Exit conversation
         update.message.reply_text("Cancelled")
@@ -308,7 +320,7 @@ def send_details_to_mt_line(update, context):
 # Error messages
 # Invalid command (General)
 def error_command_general(update, context):
-    logging.info(f'{get_user_details(update)}, Error: Invalid command (General)')
+    logger.info(f'{get_user_details(update)}, Error: Invalid command (General)')
     update.message.reply_text("Invalid. Please provide a valid command\n"
                               "Type /start to get started")
 
@@ -318,7 +330,7 @@ error_command_general_handler = MessageHandler(Filters.all, error_command_genera
 
 # User cancelled conversation
 def error_user_cancelled(update, context):
-    logging.info(f'{get_user_details(update)}, Action: /exit')
+    logger.info(f'{get_user_details(update)}, Action: /exit')
 
     # Exit conversation
     context.bot.send_message(chat_id=update.effective_chat.id, text="Cancelled\n"
@@ -332,21 +344,21 @@ def error_user_cancelled(update, context):
 
 # User insufficient input
 def error_insufficient_input(update, context):
-    logging.info(f'{get_user_details(update)}, Error: Insufficient information provided')
+    logger.info(f'{get_user_details(update)}, Error: Insufficient information provided')
     update.message.reply_text("Invalid. Please provide more information")
     update.message.reply_text("Type /exit to cancel this conversation")
 
 
 # User invalid input
 def error_invalid_input(update, context):
-    logging.info(f'{get_user_details(update)}, Error: Incorrect information provided')
+    logger.info(f'{get_user_details(update)}, Error: Incorrect information provided')
     update.message.reply_text("Invalid. Please provide a valid input")
     update.message.reply_text("Type /exit to cancel this conversation")
 
 
 # User invalid command (Conversational)
 def error_command_input(update, context):
-    logging.info(f'{get_user_details(update)}, Error: Invalid command (Conversational)')
+    logger.info(f'{get_user_details(update)}, Error: Invalid command (Conversational)')
     update.message.reply_text("Invalid. Please provide a valid command")
     update.message.reply_text("Type /exit to cancel this conversation")
 
