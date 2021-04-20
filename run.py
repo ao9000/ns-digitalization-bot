@@ -28,9 +28,9 @@ class EnvironmentVariableError(Exception):
 
 # Helper function for formatting user data
 def get_user_details(update):
-    return f'UserID: {update.effective_user.id}, Name: {update.effective_user.first_name}' \
+    return f'*UserID:* {update.effective_user.id}, *Name:* {update.effective_user.first_name}' \
            f'{f" {update.effective_user.last_name}" if update.effective_user.last_name else ""}' \
-           f'{f", Username: {update.effective_user.username}" if update.effective_user.username else ""}'
+           f'{f", *Username:* {update.effective_user.username}" if update.effective_user.username else ""}'
 
 
 # Check if environment variables are loaded
@@ -273,11 +273,9 @@ def send_details_to_mt_line(update, context):
 
     # Check if user input yes
     if confirmation in ["y", "yes"]:
-        update.message.reply_text("Sending information to MTLine personnel")
-
         # Construct message
         text = f'*Datetime*: {context.user_data["issue_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
-               f'*From user*: {get_user_details(update)}\n'\
+               f'{get_user_details(update)}\n'\
                f'{context.user_data["issue_summary"].text_markdown_v2}'
 
         # Send information to specific people(s)
@@ -290,6 +288,8 @@ def send_details_to_mt_line(update, context):
                 # User have not initialize a chat with bot yet
                 logging.warning(f"User: {chat_id} have not talked to the bot before. Skipping.")
 
+        update.message.reply_text("Sending information to MTLine personnel\n"
+                                  "Type /start to get started")
         # Save message into history
         if "history" in context.bot_data:
             context.bot_data["history"].append(text)
@@ -299,7 +299,8 @@ def send_details_to_mt_line(update, context):
         logging.info(f'{get_user_details(update)}, Input: No')
 
         # Exit conversation
-        update.message.reply_text("Cancelled")
+        update.message.reply_text("Cancelled\n"
+                                  "Type /start to get started")
 
     # Clear userdata
     context.user_data.clear()
