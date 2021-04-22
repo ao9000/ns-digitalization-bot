@@ -159,7 +159,7 @@ def get_location_of_fault(update, context):
 
     logging.info(f'{get_user_details(update)}, Input: {location_of_fault}')
 
-    # Generating issue summary message
+    # Generating fault summary message
     # Define keyboard choices
     choices = [
         [telegram.KeyboardButton("Yes")],
@@ -204,7 +204,7 @@ def send_details_to_maintenance_clerks(update, context):
             try:
                 # Send message
                 updater.bot.send_message(chat_id=chat_id, text=text, parse_mode="MarkdownV2")
-                logging.info(f"Sent issue to User: {context.bot.get_chat(chat_id)['first_name']}")
+                logging.info(f"Sent fault details to User: {context.bot.get_chat(chat_id)['first_name']}")
             except telegram.error.BadRequest:
                 # User have not initialize a chat with bot yet
                 logging.warning(f"User: {chat_id} have not talked to the bot before. Skipping.")
