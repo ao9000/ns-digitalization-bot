@@ -99,6 +99,19 @@ def PaginationHandlerMeta(func):
 
 
 # Commands
+# History command
+@PaginationHandlerMeta
+def history(update, context):
+    logging.info(f'{get_user_details(update)}, Action: /history')
+    if "history" in context.bot_data:
+        return context.bot_data["history"]
+    else:
+        return ["Empty, go ahead and submit a fault and it will show up here"]
+
+
+history_handler = CommandHandler('history', history, Filters.user(user_id=set(int(user_id) for user_id in recipient_list)))
+
+
 # Start command
 # Conversation entry point #1
 def start(update, context):
@@ -111,19 +124,6 @@ def start(update, context):
 
 
 new_fault_handler = CommandHandler('start', start)
-
-
-# History command
-@PaginationHandlerMeta
-def history(update, context):
-    logging.info(f'{get_user_details(update)}, Action: /history')
-    if "history" in context.bot_data:
-        return context.bot_data["history"]
-    else:
-        return ["Empty, go ahead and submit an issue and it will show up here"]
-
-
-history_handler = CommandHandler('history', history, Filters.user(user_id=set(int(user_id) for user_id in recipient_list)))
 
 
 def get_type_of_fault(update, context):
@@ -147,7 +147,7 @@ def get_description_of_fault(update, context):
     logging.info(f'{get_user_details(update)}, Input: {description_of_fault}')
 
     # Prompt user
-    update.message.reply_text("Location of fault? (Blk no, level, room no)")
+    update.message.reply_text("Location of fault? (Blk no, level, room no etc)")
 
     return 7
 
@@ -178,7 +178,7 @@ def get_location_of_fault(update, context):
     update.message.reply_text("Is this correct? (y/n)")
 
     # Save message object for later use
-    context.user_data["issue_summary"] = message
+    context.user_data["fault_summary"] = message
     
     return 0
 
@@ -193,9 +193,11 @@ def send_details_to_maintenance_clerks(update, context):
     # Check if user input yes
     if confirmation in ["y", "yes"]:
         # Construct message
-        text = f'*Datetime*: {context.user_data["issue_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
+        text = f'*Datetime*: {context.user_data["fault_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
                f'{get_user_details(update)}\n'\
-               f'{context.user_data["issue_summary"].text_markdown_v2}'
+               f'{context.user_data["fault_summary"].text_markdown_v2}'
+
+        update.message.reply_text("Sending information to Maintenance clerks")
 
         # Send information to specific people(s)
         for chat_id in recipient_list:
@@ -207,8 +209,9 @@ def send_details_to_maintenance_clerks(update, context):
                 # User have not initialize a chat with bot yet
                 logging.warning(f"User: {chat_id} have not talked to the bot before. Skipping.")
 
-        update.message.reply_text("Sending information to Maintenance clerks\n"
+        update.message.reply_text("Done\n"
                                   "Type /start to submit another fault")
+
         # Save message into history
         if "history" in context.bot_data:
             context.bot_data["history"].append(text)
