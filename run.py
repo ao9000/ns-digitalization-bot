@@ -279,18 +279,20 @@ def send_details_to_mt_line(update, context):
                f'{get_user_details(update)}\n'\
                f'{context.user_data["issue_summary"].text_markdown_v2}'
 
+        update.message.reply_text("Sending information to MTLine personnel")
+
         # Send information to specific people(s)
         for chat_id in recipient_list:
             try:
                 # Send message
                 updater.bot.send_message(chat_id=chat_id, text=text, parse_mode="MarkdownV2")
-                logging.info(f"Sent issue to User: {context.bot.get_chat(chat_id)['first_name']}")
+                logging.info(f"Sent issue details to User: {context.bot.get_chat(chat_id)['first_name']}")
             except telegram.error.BadRequest:
                 # User have not initialize a chat with bot yet
                 logging.warning(f"User: {chat_id} have not talked to the bot before. Skipping.")
 
-        update.message.reply_text("Sending information to MTLine personnel\n"
-                                  "Type /start to get started")
+        update.message.reply_text("Done.\n"
+                                  "Type /start to submit a new issue")
         # Save message into history
         if "history" in context.bot_data:
             context.bot_data["history"].append(text)
@@ -301,7 +303,7 @@ def send_details_to_mt_line(update, context):
 
         # Exit conversation
         update.message.reply_text("Cancelled\n"
-                                  "Type /start to get started")
+                                  "Type /start to submit a new issue")
 
     # Clear userdata
     context.user_data.clear()
@@ -314,7 +316,7 @@ def send_details_to_mt_line(update, context):
 def error_command_general(update, context):
     logging.info(f'{get_user_details(update)}, Error: Invalid command (General)')
     update.message.reply_text("Invalid. Please provide a valid command\n"
-                              "Type /start to get started")
+                              "Type /start to submit a new issue")
 
 
 error_command_general_handler = MessageHandler(Filters.all, error_command_general)
@@ -326,7 +328,7 @@ def error_user_cancelled(update, context):
 
     # Exit conversation
     context.bot.send_message(chat_id=update.effective_chat.id, text="Cancelled\n"
-                                                                    "Type /start to get started")
+                                                                    "Type /start to submit a new issue")
 
     # Clear userdata
     context.user_data.clear()
