@@ -5,6 +5,7 @@ from pytz import timezone
 import logging
 import datetime
 from telegram.ext import CommandHandler, MessageHandler, Updater, Filters, ConversationHandler, PicklePersistence
+from telegram.utils.helpers import escape_markdown
 
 # Initialize logging
 # Define timezone
@@ -27,10 +28,18 @@ class EnvironmentVariableError(Exception):
 
 
 # Helper function for formatting user data
+def display_user_details(update):
+    response = f'*Name:* [{escape_markdown(text=update.effective_user.first_name, version=2)}](tg://user?id={update.effective_user.id})'\
+               f'{f" {escape_markdown(text=update.effective_user.last_name, version=2)}" if update.effective_user.last_name else ""}'\
+               f'{f", *Username:* [{escape_markdown(text=update.effective_user.username, version=2)}](https://t.me/{update.effective_user.username})" if update.effective_user.username else ""}'
+    return response
+
+
 def get_user_details(update):
-    return f'*UserID:* {update.effective_user.id}, *Name:* {update.effective_user.first_name}' \
-           f'{f" {update.effective_user.last_name}" if update.effective_user.last_name else ""}' \
-           f'{f", *Username:* {update.effective_user.username}" if update.effective_user.username else ""}'
+    response = f'*UserID:* {update.effective_user.id}, *Name:* {update.effective_user.first_name}'\
+               f'{f" {update.effective_user.last_name}" if update.effective_user.last_name else ""}'\
+               f'{f", *Username:* {update.effective_user.username}" if update.effective_user.username else ""}'
+    return response
 
 
 # Check if environment variables are loaded
@@ -60,7 +69,7 @@ logging.info(f'{len(recipient_list)} recipients loaded')
 def PaginationHandlerMeta(func):
     def PaginationHandler(*args, **kwargs):
         # Define separator
-        separator = "\n" + ("\-" * 80) + "\n"
+        separator = "\n\n\n"
 
         # Get response
         response = func(*args, **kwargs)
@@ -160,6 +169,12 @@ def get_location_of_fault(update, context):
     logging.info(f'{get_user_details(update)}, Input: {location_of_fault}')
 
     # Generating fault summary message
+    # Let user check entered details before sending
+    response = f'*Type of fault:* {escape_markdown(text=context.user_data["type_of_fault"], version=2)}\n'\
+               f'*Description:* {escape_markdown(text=context.user_data["description_of_fault"], version=2)}\n'\
+               f'*Location:* {escape_markdown(text=context.user_data["location_of_fault"], version=2)}'
+    message = update.message.reply_text(text=response, parse_mode="MarkdownV2")
+
     # Define keyboard choices
     choices = [
         [telegram.KeyboardButton("Yes")],
@@ -168,14 +183,8 @@ def get_location_of_fault(update, context):
 
     keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
 
-    # Let user check entered details before sending
-    message = update.message.reply_text(f'*Type of fault*: {context.user_data["type_of_fault"]}\n'
-                                        f'*Description*: {context.user_data["description_of_fault"]}\n'
-                                        f'*Location*: {context.user_data["location_of_fault"]}',
-                                        reply_markup=keyboard_markup, parse_mode="MarkdownV2")
-
     # Prompt user
-    update.message.reply_text("Is this correct? (y/n)")
+    update.message.reply_text("Is this correct? (y/n)", reply_markup=keyboard_markup)
 
     # Save message object for later use
     context.user_data["fault_summary"] = message
@@ -193,11 +202,9 @@ def send_details_to_maintenance_clerks(update, context):
     # Check if user input yes
     if confirmation in ["y", "yes"]:
         # Construct message
-        text = f'*Datetime*: {context.user_data["fault_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
-               f'{get_user_details(update)}\n'\
+        text = f'*Datetime:* {context.user_data["fault_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
+               f'{display_user_details(update)}\n'\
                f'{context.user_data["fault_summary"].text_markdown_v2}'
-
-        update.message.reply_text("Sending information to Maintenance clerks")
 
         # Send information to specific people(s)
         for chat_id in recipient_list:
@@ -209,8 +216,8 @@ def send_details_to_maintenance_clerks(update, context):
                 # User have not initialize a chat with bot yet
                 logging.warning(f"User: {chat_id} have not talked to the bot before. Skipping.")
 
-        update.message.reply_text("Done\n"
-                                  "Type /start to submit another fault")
+        update.message.reply_text("Fault submitted, we will attend to you shortly")
+        update.message.reply_text("Type /start to submit another fault")
 
         # Save message into history
         if "history" in context.bot_data:
@@ -218,11 +225,9 @@ def send_details_to_maintenance_clerks(update, context):
         else:
             context.bot_data["history"] = [text]
     else:
-        logging.info(f'{get_user_details(update)}, Input: No')
-
         # Exit conversation
-        update.message.reply_text("Cancelled\n"
-                                  "Type /start to submit a new fault")
+        update.message.reply_text("Cancelled")
+        update.message.reply_text("Type /start to submit a new fault")
 
     # Clear userdata
     context.user_data.clear()
@@ -234,8 +239,8 @@ def send_details_to_maintenance_clerks(update, context):
 # Invalid command (General)
 def error_command_general(update, context):
     logging.info(f'{get_user_details(update)}, Error: Invalid command (General)')
-    update.message.reply_text("Invalid. Please provide a valid command\n"
-                              "Type /start to get started")
+    update.message.reply_text("Invalid. Please provide a valid command")
+    update.message.reply_text("Type /start to get started")
 
 
 error_command_general_handler = MessageHandler(Filters.all, error_command_general)
@@ -246,8 +251,8 @@ def error_user_cancelled(update, context):
     logging.info(f'{get_user_details(update)}, Action: /exit')
 
     # Exit conversation
-    context.bot.send_message(chat_id=update.effective_chat.id, text="Cancelled\n"
-                                                                    "Type /start to submit a new fault")
+    update.message.reply_text("Cancelled")
+    update.message.reply_text("Type /start to submit a new fault")
 
     # Clear userdata
     context.user_data.clear()
