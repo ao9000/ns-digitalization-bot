@@ -203,7 +203,7 @@ def send_details_to_maintenance_clerks(update, context):
     # Check if user input yes
     if confirmation in ["y", "yes"]:
         # Construct message
-        text = f'*Datetime:* {context.user_data["fault_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
+        response = f'*Datetime:* {context.user_data["fault_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
                f'{display_user_details(update)}\n'\
                f'{context.user_data["fault_summary"].text_markdown_v2}'
 
@@ -211,7 +211,7 @@ def send_details_to_maintenance_clerks(update, context):
         for chat_id in recipient_list:
             try:
                 # Send message
-                updater.bot.send_message(chat_id=chat_id, text=text, parse_mode="MarkdownV2")
+                updater.bot.send_message(chat_id=chat_id, text=response, parse_mode="MarkdownV2")
                 logging.info(f"Sent fault details to User: {context.bot.get_chat(chat_id)['first_name']}")
             except telegram.error.BadRequest:
                 # User have not initialize a chat with bot yet
@@ -222,9 +222,9 @@ def send_details_to_maintenance_clerks(update, context):
 
         # Save message into history
         if "history" in context.bot_data:
-            context.bot_data["history"].append(text)
+            context.bot_data["history"].append(response)
         else:
-            context.bot_data["history"] = [text]
+            context.bot_data["history"] = [response]
     else:
         # Exit conversation
         update.message.reply_text("Cancelled")
