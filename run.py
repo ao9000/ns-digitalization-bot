@@ -30,15 +30,15 @@ class EnvironmentVariableError(Exception):
 # Helper function for formatting user data
 def display_user_details(update):
     response = f'*Name:* [{escape_markdown(text=update.effective_user.first_name, version=2)}](tg://user?id={update.effective_user.id})'\
-               f'{f" {escape_markdown(text=update.effective_user.last_name, version=2)}" if update.effective_user.last_name else ""}'\
+               f'{f" [{escape_markdown(text=update.effective_user.last_name, version=2)}](tg://user?id={update.effective_user.id})" if update.effective_user.last_name else ""}'\
                f'{f", *Username:* [{escape_markdown(text=update.effective_user.username, version=2)}](https://t.me/{update.effective_user.username})" if update.effective_user.username else ""}'
     return response
 
 
 def get_user_details(update):
-    response = f'*UserID:* {update.effective_user.id}, *Name:* {update.effective_user.first_name}'\
+    response = f'UserID: {update.effective_user.id}, Name: {update.effective_user.first_name}'\
                f'{f" {update.effective_user.last_name}" if update.effective_user.last_name else ""}'\
-               f'{f", *Username:* {update.effective_user.username}" if update.effective_user.username else ""}'
+               f'{f", Username: {update.effective_user.username}" if update.effective_user.username else ""}'
     return response
 
 
