@@ -5,8 +5,8 @@ from pytz import timezone
 import logging
 import datetime
 from telegram.ext import CommandHandler, MessageHandler, Updater, Filters, ConversationHandler, PicklePersistence
-from webserver import keep_alive
 from telegram.utils.helpers import escape_markdown
+from webserver import keep_alive
 
 # Initialize logging
 # Define timezone
@@ -365,36 +365,35 @@ def error_command_input(update, context):
     update.message.reply_text("Type /exit to cancel this conversation")
 
 
-def main():
-    # Define conversation handler
-    conv_handler = ConversationHandler(
-        entry_points=[
-            vehicle_physical_damage_handler,
-            vehicle_unable_to_start_handler,
-            vehicle_tire_fault_handler
-        ],
-        states={
-            # Gathering user information states
-            0: [MessageHandler(Filters.regex(r'^[0-9]+$'), get_vehicle_mid)],
-            1: [MessageHandler((Filters.text & ~Filters.command & Filters.regex(re.compile(r'^(Yes|Y|No|N)$', re.IGNORECASE))), send_details_to_mt_line)],
-            # Physical damage states
-            5: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_physical_damage)],
-            # Unable to start states
-            6: [MessageHandler(Filters.regex(re.compile(r'^((Unable to crank)|(Crank but not starting)|(Totally no response))$', re.IGNORECASE)), get_unable_to_start_type)],
-            # Tire issue states
-            7: [MessageHandler(Filters.regex(re.compile(r'^((Air leak)|(Flat)|(Burst))$', re.IGNORECASE)), get_vehicle_tire_issue_type)]
-        },
-        fallbacks=[
-            # User cancelled command
-            MessageHandler((Filters.command & Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_user_cancelled),
-            # Regex to match any character below 4 character count
-            MessageHandler(Filters.regex(r'^.{1,4}$'), error_insufficient_input),
-            # Match other commands
-            MessageHandler((Filters.command & ~Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_command_input),
-            # Match other invalid inputs
-            MessageHandler((Filters.text & ~Filters.command), error_invalid_input)
-        ]
-    )
+# Define conversation handler
+conv_handler = ConversationHandler(
+    entry_points=[
+        vehicle_physical_damage_handler,
+        vehicle_unable_to_start_handler,
+        vehicle_tire_fault_handler
+    ],
+    states={
+        # Gathering user information states
+        0: [MessageHandler(Filters.regex(r'^[0-9]+$'), get_vehicle_mid)],
+        1: [MessageHandler((Filters.text & ~Filters.command & Filters.regex(re.compile(r'^(Yes|Y|No|N)$', re.IGNORECASE))), send_details_to_mt_line)],
+        # Physical damage states
+        5: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_physical_damage)],
+        # Unable to start states
+        6: [MessageHandler(Filters.regex(re.compile(r'^((Unable to crank)|(Crank but not starting)|(Totally no response))$', re.IGNORECASE)), get_unable_to_start_type)],
+        # Tire issue states
+        7: [MessageHandler(Filters.regex(re.compile(r'^((Air leak)|(Flat)|(Burst))$', re.IGNORECASE)), get_vehicle_tire_issue_type)]
+    },
+    fallbacks=[
+        # User cancelled command
+        MessageHandler((Filters.command & Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_user_cancelled),
+        # Regex to match any character below 4 character count
+        MessageHandler(Filters.regex(r'^.{1,4}$'), error_insufficient_input),
+        # Match other commands
+        MessageHandler((Filters.command & ~Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_command_input),
+        # Match other invalid inputs
+        MessageHandler((Filters.text & ~Filters.command), error_invalid_input)
+    ]
+)
 
 # Add handlers
 dispatcher.add_handler(conv_handler)
