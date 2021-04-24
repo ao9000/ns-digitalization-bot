@@ -28,10 +28,18 @@ class EnvironmentVariableError(Exception):
 
 
 # Helper function for formatting user data
+def display_user_details(update):
+    response = f'*Name:* [{escape_markdown(text=update.effective_user.first_name, version=2)}](tg://user?id={update.effective_user.id})'\
+               f'{f" {escape_markdown(text=update.effective_user.last_name, version=2)}" if update.effective_user.last_name else ""}'\
+               f'{f", *Username:* [{escape_markdown(text=update.effective_user.username, version=2)}](https://t.me/{update.effective_user.username})" if update.effective_user.username else ""}'
+    return response
+
+
 def get_user_details(update):
-    return f'*UserID:* {update.effective_user.id}, *Name:* {update.effective_user.first_name}' \
-           f'{f" {update.effective_user.last_name}" if update.effective_user.last_name else ""}' \
-           f'{f", *Username:* {update.effective_user.username}" if update.effective_user.username else ""}'
+    response = f'*UserID:* {update.effective_user.id}, *Name:* {update.effective_user.first_name}'\
+               f'{f" {update.effective_user.last_name}" if update.effective_user.last_name else ""}'\
+               f'{f", *Username:* {update.effective_user.username}" if update.effective_user.username else ""}'
+    return response
 
 
 # Check if environment variables are loaded
@@ -61,7 +69,7 @@ logging.info(f'{len(recipient_list)} recipients loaded')
 def PaginationHandlerMeta(func):
     def PaginationHandler(*args, **kwargs):
         # Define separator
-        separator = "\n" + ("\-" * 80) + "\n"
+        separator = "\n"*3
 
         # Get response
         response = func(*args, **kwargs)
@@ -242,6 +250,13 @@ def get_vehicle_mid(update, context):
 
     logging.info(f'{get_user_details(update)}, Input: {mid}')
 
+    # Let user check entered details before sending
+    response = f'*Vehicle MID number:* {context.user_data["mid"]}\n'\
+               f'*Issue:* {f"Vehicle Physical Damage" if "physical_damage" in context.user_data else "Vehicle unable to start" if "unable_start_type" in context.user_data else "Vehicle tire issue"}'\
+               f' \({escape_markdown(text=context.user_data["physical_damage"], version=2) if "physical_damage" in context.user_data else escape_markdown(text=context.user_data["unable_start_type"], version=2) if "unable_start_type" in context.user_data else escape_markdown(text=context.user_data["tire_fault_type"], version=2)}\)'
+
+    message = update.message.reply_text(text=response, parse_mode="MarkdownV2")
+
     # Define keyboard choices
     choices = [
         [telegram.KeyboardButton("Yes")],
@@ -250,14 +265,8 @@ def get_vehicle_mid(update, context):
 
     keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
 
-    # Let user check entered details before sending
-    message = update.message.reply_text(f'*Vehicle MID number*: {context.user_data["mid"]}\n'
-                                        f'*Issue*: {f"Vehicle Physical Damage" if "physical_damage" in context.user_data else "Vehicle unable to start" if "unable_start_type" in context.user_data else "Vehicle tire issue"}'
-                                        f' \({context.user_data["physical_damage"] if "physical_damage" in context.user_data else context.user_data["unable_start_type"] if "unable_start_type" in context.user_data else context.user_data["tire_fault_type"]}\)',
-                                        reply_markup=keyboard_markup, parse_mode="MarkdownV2")
-
     # Prompt user
-    update.message.reply_text("Is this correct? (y/n)")
+    update.message.reply_text("Is this correct? (y/n)", reply_markup=keyboard_markup)
 
     # Save message object for later use
     context.user_data["fault_summary"] = message
@@ -275,15 +284,15 @@ def send_details_to_mt_line(update, context):
     # Check if user input yes
     if confirmation in ["y", "yes"]:
         # Construct message
-        text = f'*Datetime*: {context.user_data["fault_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
-               f'{get_user_details(update)}\n'\
+        response = f'*Datetime:* {context.user_data["fault_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
+               f'{display_user_details(update)}\n'\
                f'{context.user_data["fault_summary"].text_markdown_v2}'
 
         # Send information to specific people(s)
         for chat_id in recipient_list:
             try:
                 # Send message
-                updater.bot.send_message(chat_id=chat_id, text=text, parse_mode="MarkdownV2")
+                updater.bot.send_message(chat_id=chat_id, text=response, parse_mode="MarkdownV2")
                 logging.info(f"Sent issue details to User: {context.bot.get_chat(chat_id)['first_name']}")
             except telegram.error.BadRequest:
                 # User have not initialize a chat with bot yet
@@ -291,11 +300,12 @@ def send_details_to_mt_line(update, context):
 
         update.message.reply_text("Fault submitted, we will attend to you shortly")
         update.message.reply_text("Type /start to submit a new fault")
+
         # Save message into history
         if "history" in context.bot_data:
-            context.bot_data["history"].append(text)
+            context.bot_data["history"].append(response)
         else:
-            context.bot_data["history"] = [text]
+            context.bot_data["history"] = [response]
     else:
 
         # Exit conversation
