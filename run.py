@@ -6,6 +6,7 @@ import logging
 import datetime
 from telegram.ext import CommandHandler, MessageHandler, Updater, Filters, ConversationHandler, PicklePersistence
 from webserver import keep_alive
+from telegram.utils.helpers import escape_markdown
 
 # Initialize logging
 # Define timezone
@@ -28,10 +29,18 @@ class EnvironmentVariableError(Exception):
 
 
 # Helper function for formatting user data
+def display_user_details(update):
+    response = f'*Name:* [{escape_markdown(text=update.effective_user.first_name, version=2)}](tg://user?id={update.effective_user.id})'\
+               f'{f" {escape_markdown(text=update.effective_user.last_name, version=2)}" if update.effective_user.last_name else ""}'\
+               f'{f", *Username:* [{escape_markdown(text=update.effective_user.username, version=2)}](https://t.me/{update.effective_user.username})" if update.effective_user.username else ""}'
+    return response
+
+
 def get_user_details(update):
-    return f'*UserID:* {update.effective_user.id}, *Name:* {update.effective_user.first_name}' \
-           f'{f" {update.effective_user.last_name}" if update.effective_user.last_name else ""}' \
-           f'{f", *Username:* {update.effective_user.username}" if update.effective_user.username else ""}'
+    response = f'*UserID:* {update.effective_user.id}, *Name:* {update.effective_user.first_name}'\
+               f'{f" {update.effective_user.last_name}" if update.effective_user.last_name else ""}'\
+               f'{f", *Username:* {update.effective_user.username}" if update.effective_user.username else ""}'
+    return response
 
 
 # Check if environment variables are loaded
@@ -57,36 +66,11 @@ recipient_list = os.getenv('recipient_list').split(",")
 logging.info(f'{len(recipient_list)} recipients loaded')
 
 
-# Commands
-# Start command
-def start(update, context):
-    logging.info(f'{get_user_details(update)}, Action: /start')
-
-    # Define keyboard choices
-    choices = [
-        [telegram.KeyboardButton("/Vehicle_physical_damage")],
-        [telegram.KeyboardButton("/Vehicle_unable_to_start")],
-        [telegram.KeyboardButton("/Vehicle_tire_issue")]
-    ]
-    keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
-
-    # Send message with keyboard template
-    context.bot.send_message(chat_id=update.effective_chat.id, parse_mode="MarkdownV2", reply_markup=keyboard_markup,
-                             text="Hello there, what vehicle faults are you reporting?\n"
-                                  "Tap the following commands to begin:\n"
-                                  "1\.\) /Vehicle\_physical\_damage\n"
-                                  "2\.\) /Vehicle\_unable\_to\_start\n"
-                                  "3\.\) /Vehicle\_tire\_issue")
-
-
-start_handler = CommandHandler('start', start)
-
-
 # Decorator for paginating replies
 def PaginationHandlerMeta(func):
     def PaginationHandler(*args, **kwargs):
         # Define separator
-        separator = "\n" + ("\-" * 80) + "\n"
+        separator = "\n"*3
 
         # Get response
         response = func(*args, **kwargs)
@@ -122,6 +106,31 @@ def PaginationHandlerMeta(func):
             update.message.reply_text(parse_mode="MarkdownV2", text=f"{separator}".join(part for part in response))
 
     return PaginationHandler
+
+
+# Commands
+# Start command
+def start(update, context):
+    logging.info(f'{get_user_details(update)}, Action: /start')
+
+    # Define keyboard choices
+    choices = [
+        [telegram.KeyboardButton("/Vehicle_physical_damage")],
+        [telegram.KeyboardButton("/Vehicle_unable_to_start")],
+        [telegram.KeyboardButton("/Vehicle_tire_fault")]
+    ]
+    keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
+
+    # Send message with keyboard template
+    context.bot.send_message(chat_id=update.effective_chat.id, parse_mode="MarkdownV2", reply_markup=keyboard_markup,
+                             text=escape_markdown(text="Hello there, what vehicle faults are you reporting?\n"
+                                                       "Tap the following commands to begin:\n"
+                                                       "1.) Vehicle_physical_damage\n"
+                                                       "2.) Vehicle_unable_to_start\n"
+                                                       "3.) Vehicle_tire_fault", version=2))
+
+
+start_handler = CommandHandler('start', start)
 
 
 # History command
@@ -201,8 +210,8 @@ def get_unable_to_start_type(update, context):
 
 # Vehicle tire issue command
 # Conversation entry point #3
-def vehicle_tire_issue(update, context):
-    logging.info(f'{get_user_details(update)}, Action: /Vehicle_tire_issue')
+def vehicle_tire_fault(update, context):
+    logging.info(f'{get_user_details(update)}, Action: /Vehicle_tire_fault')
 
     # Define keyboard choices
     choices = [
@@ -213,20 +222,20 @@ def vehicle_tire_issue(update, context):
     keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
 
     # Prompt user
-    update.message.reply_text("What happen to the tire?", reply_markup=keyboard_markup)
+    update.message.reply_text("What happened to the tire?", reply_markup=keyboard_markup)
 
     return 7
 
 
-vehicle_tire_issue_handler = CommandHandler('vehicle_tire_issue', vehicle_tire_issue)
+vehicle_tire_fault_handler = CommandHandler('Vehicle_tire_fault', vehicle_tire_fault)
 
 
 def get_vehicle_tire_issue_type(update, context):
     # Save user input
-    tire_issue_type = update.message.text
-    context.user_data["tire_issue_type"] = tire_issue_type
+    tire_fault_type = update.message.text
+    context.user_data["tire_fault_type"] = tire_fault_type
 
-    logging.info(f'{get_user_details(update)}, Input: {tire_issue_type}')
+    logging.info(f'{get_user_details(update)}, Input: {tire_fault_type}')
 
     # Prompt user
     update.message.reply_text("What is the vehicle MID number? (Numbers only)")
@@ -242,6 +251,13 @@ def get_vehicle_mid(update, context):
 
     logging.info(f'{get_user_details(update)}, Input: {mid}')
 
+    # Let user check entered details before sending
+    response = f'*Vehicle MID number:* {context.user_data["mid"]}\n'\
+               f'*Issue:* {f"Vehicle Physical Damage" if "physical_damage" in context.user_data else "Vehicle unable to start" if "unable_start_type" in context.user_data else "Vehicle tire issue"}'\
+               f' \({escape_markdown(text=context.user_data["physical_damage"], version=2) if "physical_damage" in context.user_data else escape_markdown(text=context.user_data["unable_start_type"], version=2) if "unable_start_type" in context.user_data else escape_markdown(text=context.user_data["tire_fault_type"], version=2)}\)'
+
+    message = update.message.reply_text(text=response, parse_mode="MarkdownV2")
+
     # Define keyboard choices
     choices = [
         [telegram.KeyboardButton("Yes")],
@@ -250,17 +266,11 @@ def get_vehicle_mid(update, context):
 
     keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
 
-    # Let user check entered details before sending
-    message = update.message.reply_text(f'*Vehicle MID number*: {context.user_data["mid"]}\n'
-                                        f'*Issue*: {f"Vehicle Physical Damage" if "physical_damage" in context.user_data else "Vehicle unable to start" if "unable_start_type" in context.user_data else "Vehicle tire issue"}'
-                                        f' \({context.user_data["physical_damage"] if "physical_damage" in context.user_data else context.user_data["unable_start_type"] if "unable_start_type" in context.user_data else context.user_data["tire_issue_type"]}\)',
-                                        reply_markup=keyboard_markup, parse_mode="MarkdownV2")
-
     # Prompt user
-    update.message.reply_text("Is this correct? (y/n)")
+    update.message.reply_text("Is this correct? (y/n)", reply_markup=keyboard_markup)
 
     # Save message object for later use
-    context.user_data["issue_summary"] = message
+    context.user_data["fault_summary"] = message
 
     return 1
 
@@ -275,35 +285,33 @@ def send_details_to_mt_line(update, context):
     # Check if user input yes
     if confirmation in ["y", "yes"]:
         # Construct message
-        text = f'*Datetime*: {context.user_data["issue_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
-               f'{get_user_details(update)}\n'\
-               f'{context.user_data["issue_summary"].text_markdown_v2}'
-
-        update.message.reply_text("Sending information to MTLine personnel")
+        response = f'*Datetime:* {context.user_data["fault_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
+               f'{display_user_details(update)}\n'\
+               f'{context.user_data["fault_summary"].text_markdown_v2}'
 
         # Send information to specific people(s)
         for chat_id in recipient_list:
             try:
                 # Send message
-                updater.bot.send_message(chat_id=chat_id, text=text, parse_mode="MarkdownV2")
+                updater.bot.send_message(chat_id=chat_id, text=response, parse_mode="MarkdownV2")
                 logging.info(f"Sent issue details to User: {context.bot.get_chat(chat_id)['first_name']}")
             except telegram.error.BadRequest:
                 # User have not initialize a chat with bot yet
                 logging.warning(f"User: {chat_id} have not talked to the bot before. Skipping.")
 
-        update.message.reply_text("Done.\n"
-                                  "Type /start to submit a new issue")
+        update.message.reply_text("Fault submitted, we will attend to you shortly")
+        update.message.reply_text("Type /start to submit a new fault")
+
         # Save message into history
         if "history" in context.bot_data:
-            context.bot_data["history"].append(text)
+            context.bot_data["history"].append(response)
         else:
-            context.bot_data["history"] = [text]
+            context.bot_data["history"] = [response]
     else:
-        logging.info(f'{get_user_details(update)}, Input: No')
 
         # Exit conversation
-        update.message.reply_text("Cancelled\n"
-                                  "Type /start to submit a new issue")
+        update.message.reply_text("Cancelled")
+        update.message.reply_text("Type /start to submit a new fault")
 
     # Clear userdata
     context.user_data.clear()
@@ -315,8 +323,8 @@ def send_details_to_mt_line(update, context):
 # Invalid command (General)
 def error_command_general(update, context):
     logging.info(f'{get_user_details(update)}, Error: Invalid command (General)')
-    update.message.reply_text("Invalid. Please provide a valid command\n"
-                              "Type /start to submit a new issue")
+    update.message.reply_text("Invalid. Please provide a valid command")
+    update.message.reply_text("Type /start to submit a new fault")
 
 
 error_command_general_handler = MessageHandler(Filters.all, error_command_general)
@@ -327,8 +335,8 @@ def error_user_cancelled(update, context):
     logging.info(f'{get_user_details(update)}, Action: /exit')
 
     # Exit conversation
-    context.bot.send_message(chat_id=update.effective_chat.id, text="Cancelled\n"
-                                                                    "Type /start to submit a new issue")
+    update.message.reply_text("Cancelled")
+    update.message.reply_text("Type /start to submit a new fault")
 
     # Clear userdata
     context.user_data.clear()
@@ -357,35 +365,36 @@ def error_command_input(update, context):
     update.message.reply_text("Type /exit to cancel this conversation")
 
 
-# Define conversation handler
-conv_handler = ConversationHandler(
-    entry_points=[
-        vehicle_physical_damage_handler,
-        vehicle_unable_to_start_handler,
-        vehicle_tire_issue_handler
-    ],
-    states={
-        # Gathering user information states
-        0: [MessageHandler(Filters.regex(r'^[0-9]+$'), get_vehicle_mid)],
-        1: [MessageHandler((Filters.text & ~Filters.command & Filters.regex(re.compile(r'^(Yes|Y|No|N)$', re.IGNORECASE))), send_details_to_mt_line)],
-        # Physical damage states
-        5: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_physical_damage)],
-        # Unable to start states
-        6: [MessageHandler(Filters.regex(re.compile(r'^((Unable to crank)|(Crank but not starting)|(Totally no response))$', re.IGNORECASE)), get_unable_to_start_type)],
-        # Tire issue states
-        7: [MessageHandler(Filters.regex(re.compile(r'^((Air leak)|(Flat)|(Burst))$', re.IGNORECASE)), get_vehicle_tire_issue_type)]
-    },
-    fallbacks=[
-        # User cancelled command
-        MessageHandler((Filters.command & Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_user_cancelled),
-        # Regex to match any character below 4 character count
-        MessageHandler(Filters.regex(r'^.{1,4}$'), error_insufficient_input),
-        # Match other commands
-        MessageHandler((Filters.command & ~Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_command_input),
-        # Match other invalid inputs
-        MessageHandler((Filters.text & ~Filters.command), error_invalid_input)
-    ]
-)
+def main():
+    # Define conversation handler
+    conv_handler = ConversationHandler(
+        entry_points=[
+            vehicle_physical_damage_handler,
+            vehicle_unable_to_start_handler,
+            vehicle_tire_fault_handler
+        ],
+        states={
+            # Gathering user information states
+            0: [MessageHandler(Filters.regex(r'^[0-9]+$'), get_vehicle_mid)],
+            1: [MessageHandler((Filters.text & ~Filters.command & Filters.regex(re.compile(r'^(Yes|Y|No|N)$', re.IGNORECASE))), send_details_to_mt_line)],
+            # Physical damage states
+            5: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_physical_damage)],
+            # Unable to start states
+            6: [MessageHandler(Filters.regex(re.compile(r'^((Unable to crank)|(Crank but not starting)|(Totally no response))$', re.IGNORECASE)), get_unable_to_start_type)],
+            # Tire issue states
+            7: [MessageHandler(Filters.regex(re.compile(r'^((Air leak)|(Flat)|(Burst))$', re.IGNORECASE)), get_vehicle_tire_issue_type)]
+        },
+        fallbacks=[
+            # User cancelled command
+            MessageHandler((Filters.command & Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_user_cancelled),
+            # Regex to match any character below 4 character count
+            MessageHandler(Filters.regex(r'^.{1,4}$'), error_insufficient_input),
+            # Match other commands
+            MessageHandler((Filters.command & ~Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_command_input),
+            # Match other invalid inputs
+            MessageHandler((Filters.text & ~Filters.command), error_invalid_input)
+        ]
+    )
 
 # Add handlers
 dispatcher.add_handler(conv_handler)
