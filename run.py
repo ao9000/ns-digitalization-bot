@@ -5,6 +5,7 @@ from pytz import timezone
 import logging
 import datetime
 from telegram.ext import CommandHandler, MessageHandler, Updater, Filters, ConversationHandler, PicklePersistence
+from telegram.utils.helpers import escape_markdown
 
 # Initialize logging
 # Define timezone
@@ -56,31 +57,6 @@ recipient_list = os.getenv('recipient_list').split(",")
 logging.info(f'{len(recipient_list)} recipients loaded')
 
 
-# Commands
-# Start command
-def start(update, context):
-    logging.info(f'{get_user_details(update)}, Action: /start')
-
-    # Define keyboard choices
-    choices = [
-        [telegram.KeyboardButton("/Vehicle_physical_damage")],
-        [telegram.KeyboardButton("/Vehicle_unable_to_start")],
-        [telegram.KeyboardButton("/Vehicle_tire_issue")]
-    ]
-    keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
-
-    # Send message with keyboard template
-    context.bot.send_message(chat_id=update.effective_chat.id, parse_mode="MarkdownV2", reply_markup=keyboard_markup,
-                             text="Hello there, what vehicle faults are you reporting?\n"
-                                  "Tap the following commands to begin:\n"
-                                  "1\.\) /Vehicle\_physical\_damage\n"
-                                  "2\.\) /Vehicle\_unable\_to\_start\n"
-                                  "3\.\) /Vehicle\_tire\_issue")
-
-
-start_handler = CommandHandler('start', start)
-
-
 # Decorator for paginating replies
 def PaginationHandlerMeta(func):
     def PaginationHandler(*args, **kwargs):
@@ -121,6 +97,31 @@ def PaginationHandlerMeta(func):
             update.message.reply_text(parse_mode="MarkdownV2", text=f"{separator}".join(part for part in response))
 
     return PaginationHandler
+
+
+# Commands
+# Start command
+def start(update, context):
+    logging.info(f'{get_user_details(update)}, Action: /start')
+
+    # Define keyboard choices
+    choices = [
+        [telegram.KeyboardButton("/Vehicle_physical_damage")],
+        [telegram.KeyboardButton("/Vehicle_unable_to_start")],
+        [telegram.KeyboardButton("/Vehicle_tire_fault")]
+    ]
+    keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
+
+    # Send message with keyboard template
+    context.bot.send_message(chat_id=update.effective_chat.id, parse_mode="MarkdownV2", reply_markup=keyboard_markup,
+                             text=escape_markdown(text="Hello there, what vehicle faults are you reporting?\n"
+                                                       "Tap the following commands to begin:\n"
+                                                       "1.) Vehicle_physical_damage\n"
+                                                       "2.) Vehicle_unable_to_start\n"
+                                                       "3.) Vehicle_tire_fault", version=2))
+
+
+start_handler = CommandHandler('start', start)
 
 
 # History command
@@ -200,8 +201,8 @@ def get_unable_to_start_type(update, context):
 
 # Vehicle tire issue command
 # Conversation entry point #3
-def vehicle_tire_issue(update, context):
-    logging.info(f'{get_user_details(update)}, Action: /Vehicle_tire_issue')
+def vehicle_tire_fault(update, context):
+    logging.info(f'{get_user_details(update)}, Action: /Vehicle_tire_fault')
 
     # Define keyboard choices
     choices = [
@@ -212,20 +213,20 @@ def vehicle_tire_issue(update, context):
     keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
 
     # Prompt user
-    update.message.reply_text("What happen to the tire?", reply_markup=keyboard_markup)
+    update.message.reply_text("What happened to the tire?", reply_markup=keyboard_markup)
 
     return 7
 
 
-vehicle_tire_issue_handler = CommandHandler('vehicle_tire_issue', vehicle_tire_issue)
+vehicle_tire_fault_handler = CommandHandler('Vehicle_tire_fault', vehicle_tire_fault)
 
 
 def get_vehicle_tire_issue_type(update, context):
     # Save user input
-    tire_issue_type = update.message.text
-    context.user_data["tire_issue_type"] = tire_issue_type
+    tire_fault_type = update.message.text
+    context.user_data["tire_fault_type"] = tire_fault_type
 
-    logging.info(f'{get_user_details(update)}, Input: {tire_issue_type}')
+    logging.info(f'{get_user_details(update)}, Input: {tire_fault_type}')
 
     # Prompt user
     update.message.reply_text("What is the vehicle MID number? (Numbers only)")
@@ -252,14 +253,14 @@ def get_vehicle_mid(update, context):
     # Let user check entered details before sending
     message = update.message.reply_text(f'*Vehicle MID number*: {context.user_data["mid"]}\n'
                                         f'*Issue*: {f"Vehicle Physical Damage" if "physical_damage" in context.user_data else "Vehicle unable to start" if "unable_start_type" in context.user_data else "Vehicle tire issue"}'
-                                        f' \({context.user_data["physical_damage"] if "physical_damage" in context.user_data else context.user_data["unable_start_type"] if "unable_start_type" in context.user_data else context.user_data["tire_issue_type"]}\)',
+                                        f' \({context.user_data["physical_damage"] if "physical_damage" in context.user_data else context.user_data["unable_start_type"] if "unable_start_type" in context.user_data else context.user_data["tire_fault_type"]}\)',
                                         reply_markup=keyboard_markup, parse_mode="MarkdownV2")
 
     # Prompt user
     update.message.reply_text("Is this correct? (y/n)")
 
     # Save message object for later use
-    context.user_data["issue_summary"] = message
+    context.user_data["fault_summary"] = message
 
     return 1
 
@@ -274,11 +275,9 @@ def send_details_to_mt_line(update, context):
     # Check if user input yes
     if confirmation in ["y", "yes"]:
         # Construct message
-        text = f'*Datetime*: {context.user_data["issue_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
+        text = f'*Datetime*: {context.user_data["fault_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
                f'{get_user_details(update)}\n'\
-               f'{context.user_data["issue_summary"].text_markdown_v2}'
-
-        update.message.reply_text("Sending information to MTLine personnel")
+               f'{context.user_data["fault_summary"].text_markdown_v2}'
 
         # Send information to specific people(s)
         for chat_id in recipient_list:
@@ -290,19 +289,18 @@ def send_details_to_mt_line(update, context):
                 # User have not initialize a chat with bot yet
                 logging.warning(f"User: {chat_id} have not talked to the bot before. Skipping.")
 
-        update.message.reply_text("Done.\n"
-                                  "Type /start to submit a new issue")
+        update.message.reply_text("Fault submitted, we will attend to you shortly")
+        update.message.reply_text("Type /start to submit a new fault")
         # Save message into history
         if "history" in context.bot_data:
             context.bot_data["history"].append(text)
         else:
             context.bot_data["history"] = [text]
     else:
-        logging.info(f'{get_user_details(update)}, Input: No')
 
         # Exit conversation
-        update.message.reply_text("Cancelled\n"
-                                  "Type /start to submit a new issue")
+        update.message.reply_text("Cancelled")
+        update.message.reply_text("Type /start to submit a new fault")
 
     # Clear userdata
     context.user_data.clear()
@@ -314,8 +312,8 @@ def send_details_to_mt_line(update, context):
 # Invalid command (General)
 def error_command_general(update, context):
     logging.info(f'{get_user_details(update)}, Error: Invalid command (General)')
-    update.message.reply_text("Invalid. Please provide a valid command\n"
-                              "Type /start to submit a new issue")
+    update.message.reply_text("Invalid. Please provide a valid command")
+    update.message.reply_text("Type /start to submit a new fault")
 
 
 error_command_general_handler = MessageHandler(Filters.all, error_command_general)
@@ -326,8 +324,8 @@ def error_user_cancelled(update, context):
     logging.info(f'{get_user_details(update)}, Action: /exit')
 
     # Exit conversation
-    context.bot.send_message(chat_id=update.effective_chat.id, text="Cancelled\n"
-                                                                    "Type /start to submit a new issue")
+    update.message.reply_text("Cancelled")
+    update.message.reply_text("Type /start to submit a new fault")
 
     # Clear userdata
     context.user_data.clear()
@@ -362,7 +360,7 @@ def main():
         entry_points=[
             vehicle_physical_damage_handler,
             vehicle_unable_to_start_handler,
-            vehicle_tire_issue_handler
+            vehicle_tire_fault_handler
         ],
         states={
             # Gathering user information states
