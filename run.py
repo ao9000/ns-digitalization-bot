@@ -99,10 +99,8 @@ def PaginationHandlerMeta(func):
         if isinstance(response, dict):
             # Dict, need to check for pagination
             if len(f"{separator}".join(part for part in response.values())) > 4096:
-                # Sort dict based on index asc order
-                response = sorted(response.items())
                 # Get key references
-                keys = response.keys()
+                keys = list(response.keys())
                 # Construct paginated response
                 start_index = 0
                 for end_index, _ in enumerate(keys, start=1):
