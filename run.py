@@ -361,10 +361,12 @@ def error_command_input(update, context):
     update.message.reply_text("Invalid. Please provide a valid command")
     update.message.reply_text("Type /exit to cancel this conversation")
 
+
 # Define conversation handler
 conv_handler = ConversationHandler(
     entry_points=[
-        new_fault_handler
+        new_fault_handler,
+        history_handler
     ],
     states={
         # Gathering user information states
@@ -374,7 +376,9 @@ conv_handler = ConversationHandler(
         # Description of fault
         6: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_description_of_fault)],
         # Location of fault
-        7: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_location_of_fault)]
+        7: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_location_of_fault)],
+        # Selecting history version
+        100: [MessageHandler(Filters.text & ~Filters.command & Filters.regex(re.compile(r'^(Active|Resolved)$', re.IGNORECASE)), get_history_version)]
     },
     fallbacks=[
         # User cancelled command
@@ -386,40 +390,11 @@ conv_handler = ConversationHandler(
     ]
 )
 
-def main():
-    # Define conversation handler
-    conv_handler = ConversationHandler(
-        entry_points=[
-            new_fault_handler,
-            history_handler
-        ],
-        states={
-            # Gathering user information states
-            0: [MessageHandler((Filters.text & ~Filters.command & Filters.regex(re.compile(r'^(Yes|Y|No|N)$', re.IGNORECASE))), send_details_to_maintenance_clerks)],
-            # Type of fault
-            5: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_type_of_fault)],
-            # Description of fault
-            6: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_description_of_fault)],
-            # Location of fault
-            7: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_location_of_fault)],
-            # Selecting history version
-            100: [MessageHandler(Filters.text & ~Filters.command & Filters.regex(re.compile(r'^(Active|Resolved)$', re.IGNORECASE)), get_history_version)]
-        },
-        fallbacks=[
-            # User cancelled command
-            MessageHandler((Filters.command & Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_user_cancelled),
-            # Regex to match any character below 4 character count
-            MessageHandler(Filters.regex(r'^.{1,4}$'), error_insufficient_input),
-            # Match other commands
-            MessageHandler((Filters.command & ~Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_command_input)
-        ]
-    )
-
-    # Add handlers
-    dispatcher.add_handler(conv_handler)
-    dispatcher.add_handler(history_handler)
-    dispatcher.add_handler(mark_resolve_active_fault_handler)
-    dispatcher.add_handler(error_command_general_handler)
+# Add handlers
+dispatcher.add_handler(conv_handler)
+dispatcher.add_handler(history_handler)
+dispatcher.add_handler(mark_resolve_active_fault_handler)
+dispatcher.add_handler(error_command_general_handler)
 # Start bot, stop when interrupted
 keep_alive()
 updater.start_polling()
