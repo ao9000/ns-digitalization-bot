@@ -143,13 +143,13 @@ def history(update, context):
     # Define keyboard choices
     choices = [
         [telegram.KeyboardButton("Active")],
-        [telegram.KeyboardButton("Resolved")]
+        [telegram.KeyboardButton("Resolved")],
     ]
 
     keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
 
     # Prompt user for active or resolved fault history
-    update.message.reply_text("Choose active/resolved fault history", reply_markup=keyboard_markup)
+    update.message.reply_text(f"Choose *active* or *resolved* fault history", reply_markup=keyboard_markup, parse_mode="MarkdownV2")
 
     return 100
 
@@ -173,6 +173,35 @@ def get_history_version(update, context):
             return context.bot_data["resolved_history"]
         else:
             return "No resolved faults, go ahead and mark an active fault as resolved and it will show up here"
+
+
+def mark_resolve_active_fault(update, context):
+    # Handle user input
+    fault_id = context.args
+    if not fault_id:
+        # Empty list
+        update.message.reply_text("No arguments provided, please provide a valid fault id")
+    elif "".join(word for word in fault_id).strip().isdigit():
+        # Integer passed, proceed to execute function
+        fault_id = int("".join(word for word in fault_id).strip())
+        # Move fault from active dict to resolved dict
+        try:
+            # Check if resolved_history dict exists
+            if "resolved_history" in context.bot_data:
+                context.bot_data["resolved_history"][fault_id] = context.bot_data["active_history"].pop(fault_id)
+            else:
+                context.bot_data["resolved_history"] = {fault_id:context.bot_data["active_history"].pop(fault_id)}
+
+            update.message.reply_text(f"Fault id:{fault_id} has been marked as resolved")
+        except KeyError:
+            # Key not found in active history dict
+            update.message.reply_text("No such active fault id")
+    else:
+        # Other data type passed, error
+        update.message.reply_text("Unexpected arguments provided, please provide a valid fault id")
+
+
+mark_resolve_active_fault_handler = CommandHandler('resolved', mark_resolve_active_fault, Filters.user(user_id=set(int(user_id) for user_id in recipient_list)))
 
 
 # Start command
@@ -260,8 +289,7 @@ def send_details_to_maintenance_clerks(update, context):
         fault_id = get_fault_index(context)
 
         # Construct message
-        response = f'__New Fault Submitted:__\n'\
-                   f'*Fault ID:*{fault_id}\n'\
+        response = f'*Fault ID:* {fault_id}\n'\
                    f'*Datetime:* {context.user_data["fault_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
                    f'{display_user_details(update)}\n'\
                    f'{context.user_data["fault_summary"].text_markdown_v2}'
@@ -270,6 +298,7 @@ def send_details_to_maintenance_clerks(update, context):
         for chat_id in recipient_list:
             try:
                 # Send message
+                updater.bot.send_message(chat_id=chat_id, text=f"New fault has been submitted!")
                 updater.bot.send_message(chat_id=chat_id, text=response, parse_mode="MarkdownV2")
                 logging.info(f"Sent fault details to User: {context.bot.get_chat(chat_id)['first_name']}")
             except telegram.error.BadRequest:
@@ -366,6 +395,7 @@ def main():
     # Add handlers
     dispatcher.add_handler(conv_handler)
     dispatcher.add_handler(history_handler)
+    dispatcher.add_handler(mark_resolve_active_fault_handler)
     dispatcher.add_handler(error_command_general_handler)
 
     # Start bot, stop when interrupted
