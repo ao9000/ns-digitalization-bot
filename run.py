@@ -189,8 +189,15 @@ def mark_resolve_active_fault(update, context):
                 context.bot_data["resolved_history"][fault_id] = context.bot_data["active_history"].pop(fault_id)
             else:
                 context.bot_data["resolved_history"] = {fault_id:context.bot_data["active_history"].pop(fault_id)}
-
-            update.message.reply_text(f"Fault id:{fault_id} has been marked as resolved")
+                
+            # Update everyone in the recipient list
+            for chat_id in recipient_list:
+                try:
+                    # Send message
+                    updater.bot.send_message(chat_id=chat_id, text=f"Fault id:{fault_id} has been marked as resolved")
+                except telegram.error.BadRequest:
+                    # User have not initialize a chat with bot yet
+                    logging.warning(f"User: {chat_id} have not talked to the bot before. Skipping.")
         except KeyError:
             # Key not found in active history dict
             update.message.reply_text("No such active fault id")
