@@ -43,6 +43,21 @@ def get_user_details(update):
     return response
 
 
+def get_fault_index(context):
+    # Both dicts are not empty
+    if all(dict_name in context.bot_data for dict_name in ["active_history", "resolved_history"]):
+        index = len(context.bot_data["active_history"]) + len(context.bot_data["resolved_history"])
+    elif "active_history" in context.bot_data:
+        index = len(context.bot_data["active_history"])
+    elif "resolved_history" in context.bot_data:
+        index = len(context.bot_data["resolved_history"])
+    else:
+        # Both dict empty
+        index = 0
+
+    return index+1
+
+
 # Check if environment variables are loaded
 logging.info("Checking environment variables")
 environment_variables = ["bot_token", "recipient_list"]
@@ -82,44 +97,110 @@ def PaginationHandlerMeta(func):
             elif isinstance(arg, telegram.ext.callbackcontext.CallbackContext):
                 context = arg
 
-        if len(f"{separator}".join(part for part in response)) > 4096:
-            # Construct paginated response
-            start_index = 0
-            for end_index, _ in enumerate(response, start=1):
-                if len(f"{separator}".join(part for part in response[start_index:end_index])) > 4096:
-                    # Remove last element and send
-                    update.message.reply_text(parse_mode="MarkdownV2", text=f"{separator}".join(part for part in response[start_index:end_index - 1]))
+        if isinstance(response, dict):
+            # Dict, need to check for pagination
+            if len(f"{separator}".join(part for part in response.values())) > 4096:
+                # Get key references
+                keys = list(response.keys())
+                # Construct paginated response
+                start_index = 0
+                for end_index, _ in enumerate(keys, start=1):
+                    if len(f"{separator}".join(response[key] for key in keys[start_index:end_index])) > 4096:
+                        # Remove last element and send
+                        update.message.reply_text(parse_mode="MarkdownV2", text=f"{separator}".join(
+                            response[key] for key in keys[start_index:end_index - 1]))
 
-                    # Check if last element
-                    if end_index == len(response):
-                        # Just send out last element
-                        update.message.reply_text(parse_mode="MarkdownV2", text=response[end_index - 1])
-                    else:
-                        # Go back one index
-                        start_index = end_index-1
+                        # Check if last element
+                        if end_index == len(response):
+                            # Just send out last element
+                            update.message.reply_text(parse_mode="MarkdownV2", text=response[keys[end_index - 1]])
+                        else:
+                            # Go back one index
+                            start_index = end_index - 1
 
-                elif end_index == len(response):
-                    # Last element
-                    update.message.reply_text(parse_mode="MarkdownV2", text=f"{separator}".join(part for part in response[start_index:end_index]))
+                    elif end_index == len(response):
+                        # Last element without exceeding message character count
+                        update.message.reply_text(parse_mode="MarkdownV2", text=f"{separator}".join(
+                            response[key] for key in keys[start_index:end_index]))
+            else:
+                # No need to paginate
+                update.message.reply_text(parse_mode="MarkdownV2", text=f"{separator}".join(part for part in response.values()))
         else:
-            # No need to paginate
-            update.message.reply_text(parse_mode="MarkdownV2", text=f"{separator}".join(part for part in response))
+            # String, single output, no need paginate
+            update.message.reply_text(parse_mode="MarkdownV2", text=response)
+
+        return ConversationHandler.END
 
     return PaginationHandler
 
 
 # Commands
 # History command
-@PaginationHandlerMeta
 def history(update, context):
     logging.info(f'{get_user_details(update)}, Action: /history')
-    if "history" in context.bot_data:
-        return context.bot_data["history"]
-    else:
-        return ["Empty, go ahead and submit a fault and it will show up here"]
+
+    # Define keyboard choices
+    choices = [
+        [telegram.KeyboardButton("Active")],
+        [telegram.KeyboardButton("Resolved")],
+    ]
+
+    keyboard_markup = telegram.ReplyKeyboardMarkup(choices, one_time_keyboard=True)
+
+    # Prompt user for active or resolved fault history
+    update.message.reply_text(f"Choose *active* or *resolved* fault history", reply_markup=keyboard_markup, parse_mode="MarkdownV2")
+
+    return 100
 
 
 history_handler = CommandHandler('history', history, Filters.user(user_id=set(int(user_id) for user_id in recipient_list)))
+
+
+@PaginationHandlerMeta
+def get_history_version(update, context):
+    # Standardise user input
+    history_version = update.message.text.lower()
+
+    if history_version == "active":
+        if "active_history" in context.bot_data:
+            return context.bot_data["active_history"]
+        else:
+            return "No active faults, go ahead and submit a new fault and it will show up here"
+    else:
+        # Resolved history
+        if "resolved_history" in context.bot_data:
+            return context.bot_data["resolved_history"]
+        else:
+            return "No resolved faults, go ahead and mark an active fault as resolved and it will show up here"
+
+
+def mark_resolve_active_fault(update, context):
+    # Handle user input
+    fault_id = context.args
+    if not fault_id:
+        # Empty list
+        update.message.reply_text("No arguments provided, please provide a valid fault id")
+    elif "".join(word for word in fault_id).strip().isdigit():
+        # Integer passed, proceed to execute function
+        fault_id = int("".join(word for word in fault_id).strip())
+        # Move fault from active dict to resolved dict
+        try:
+            # Check if resolved_history dict exists
+            if "resolved_history" in context.bot_data:
+                context.bot_data["resolved_history"][fault_id] = context.bot_data["active_history"].pop(fault_id)
+            else:
+                context.bot_data["resolved_history"] = {fault_id:context.bot_data["active_history"].pop(fault_id)}
+
+            update.message.reply_text(f"Fault id:{fault_id} has been marked as resolved")
+        except KeyError:
+            # Key not found in active history dict
+            update.message.reply_text("No such active fault id")
+    else:
+        # Other data type passed, error
+        update.message.reply_text("Unexpected arguments provided, please provide a valid fault id")
+
+
+mark_resolve_active_fault_handler = CommandHandler('resolved', mark_resolve_active_fault, Filters.user(user_id=set(int(user_id) for user_id in recipient_list)))
 
 
 # Start command
@@ -202,15 +283,21 @@ def send_details_to_maintenance_clerks(update, context):
 
     # Check if user input yes
     if confirmation in ["y", "yes"]:
+        # Get running number for fault id
+        # Combine len for both resolved & active fault records to find id
+        fault_id = get_fault_index(context)
+
         # Construct message
-        response = f'*Datetime:* {context.user_data["fault_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
-               f'{display_user_details(update)}\n'\
-               f'{context.user_data["fault_summary"].text_markdown_v2}'
+        response = f'*Fault ID:* {fault_id}\n'\
+                   f'*Datetime:* {context.user_data["fault_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
+                   f'{display_user_details(update)}\n'\
+                   f'{context.user_data["fault_summary"].text_markdown_v2}'
 
         # Send information to specific people(s)
         for chat_id in recipient_list:
             try:
                 # Send message
+                updater.bot.send_message(chat_id=chat_id, text=f"New fault has been submitted!")
                 updater.bot.send_message(chat_id=chat_id, text=response, parse_mode="MarkdownV2")
                 logging.info(f"Sent fault details to User: {context.bot.get_chat(chat_id)['first_name']}")
             except telegram.error.BadRequest:
@@ -221,10 +308,10 @@ def send_details_to_maintenance_clerks(update, context):
         update.message.reply_text("Type /start to submit another fault")
 
         # Save message into history
-        if "history" in context.bot_data:
-            context.bot_data["history"].append(response)
+        if "active_history" in context.bot_data:
+            context.bot_data['active_history'][fault_id] = response
         else:
-            context.bot_data["history"] = [response]
+            context.bot_data["active_history"] = {fault_id: response}
     else:
         # Exit conversation
         update.message.reply_text("Cancelled")
@@ -299,11 +386,40 @@ conv_handler = ConversationHandler(
     ]
 )
 
-# Add handlers
-dispatcher.add_handler(conv_handler)
-dispatcher.add_handler(history_handler)
-dispatcher.add_handler(error_command_general_handler)
+def main():
+    # Define conversation handler
+    conv_handler = ConversationHandler(
+        entry_points=[
+            new_fault_handler,
+            history_handler
+        ],
+        states={
+            # Gathering user information states
+            0: [MessageHandler((Filters.text & ~Filters.command & Filters.regex(re.compile(r'^(Yes|Y|No|N)$', re.IGNORECASE))), send_details_to_maintenance_clerks)],
+            # Type of fault
+            5: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_type_of_fault)],
+            # Description of fault
+            6: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_description_of_fault)],
+            # Location of fault
+            7: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_location_of_fault)],
+            # Selecting history version
+            100: [MessageHandler(Filters.text & ~Filters.command & Filters.regex(re.compile(r'^(Active|Resolved)$', re.IGNORECASE)), get_history_version)]
+        },
+        fallbacks=[
+            # User cancelled command
+            MessageHandler((Filters.command & Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_user_cancelled),
+            # Regex to match any character below 4 character count
+            MessageHandler(Filters.regex(r'^.{1,4}$'), error_insufficient_input),
+            # Match other commands
+            MessageHandler((Filters.command & ~Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_command_input)
+        ]
+    )
 
+    # Add handlers
+    dispatcher.add_handler(conv_handler)
+    dispatcher.add_handler(history_handler)
+    dispatcher.add_handler(mark_resolve_active_fault_handler)
+    dispatcher.add_handler(error_command_general_handler)
 # Start bot, stop when interrupted
 keep_alive()
 updater.start_polling()
