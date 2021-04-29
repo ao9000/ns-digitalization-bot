@@ -99,33 +99,36 @@ def PaginationHandlerMeta(func):
         if isinstance(response, dict):
             # Dict, need to check for pagination
             if len(f"{separator}".join(part for part in response.values())) > 4096:
+                # Sort dict based on index asc order
+                response = sorted(response.items())
+                # Get key references
+                keys = response.keys()
                 # Construct paginated response
                 start_index = 0
-                for end_index, _ in enumerate(response, start=1):
-                    if len(f"{separator}".join(part for part in response[start_index:end_index])) > 4096:
+                for end_index, _ in enumerate(keys, start=1):
+                    if len(f"{separator}".join(response[key] for key in keys[start_index:end_index])) > 4096:
                         # Remove last element and send
                         update.message.reply_text(parse_mode="MarkdownV2", text=f"{separator}".join(
-                            part for part in response[start_index:end_index - 1]))
+                            response[key] for key in keys[start_index:end_index - 1]))
 
                         # Check if last element
                         if end_index == len(response):
                             # Just send out last element
-                            update.message.reply_text(parse_mode="MarkdownV2", text=response[end_index - 1])
+                            update.message.reply_text(parse_mode="MarkdownV2", text=response[keys[end_index - 1]])
                         else:
                             # Go back one index
                             start_index = end_index - 1
 
                     elif end_index == len(response):
-                        # Last element
+                        # Last element without exceeding message character count
                         update.message.reply_text(parse_mode="MarkdownV2", text=f"{separator}".join(
-                            part for part in response[start_index:end_index]))
+                            response[key] for key in keys[start_index:end_index]))
             else:
                 # No need to paginate
-                update.message.reply_text(parse_mode="MarkdownV2", text=f"{separator}".join(part for part in response))
+                update.message.reply_text(parse_mode="MarkdownV2", text=f"{separator}".join(part for part in response.values()))
         else:
             # String, single output, no need paginate
             update.message.reply_text(parse_mode="MarkdownV2", text=response)
-
 
         return ConversationHandler.END
 
@@ -257,8 +260,8 @@ def send_details_to_maintenance_clerks(update, context):
         fault_id = get_fault_index(context)
 
         # Construct message
-        response = f'__New Fault Submitted:__'\
-                   f'*Fault ID:*{fault_id}'\
+        response = f'__New Fault Submitted:__\n'\
+                   f'*Fault ID:*{fault_id}\n'\
                    f'*Datetime:* {context.user_data["fault_summary"].date.astimezone(tz).strftime("%d/%m/%Y, %H:%M:%S")}\n'\
                    f'{display_user_details(update)}\n'\
                    f'{context.user_data["fault_summary"].text_markdown_v2}'
