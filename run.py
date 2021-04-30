@@ -27,7 +27,8 @@ class EnvironmentVariableError(Exception):
     pass
 
 
-# Helper function for formatting user data
+# Helper functions
+# Formatting user data for display
 def display_user_details(update):
     response = f'*Name:* [{escape_markdown(text=update.effective_user.first_name, version=2)}](tg://user?id={update.effective_user.id})'\
                f'{f" [{escape_markdown(text=update.effective_user.last_name, version=2)}](tg://user?id={update.effective_user.id})" if update.effective_user.last_name else ""}'\
@@ -35,6 +36,7 @@ def display_user_details(update):
     return response
 
 
+# Formatting user data for logging
 def get_user_details(update):
     response = f'UserID: {update.effective_user.id}, Name: {update.effective_user.first_name}'\
                f'{f" {update.effective_user.last_name}" if update.effective_user.last_name else ""}'\
@@ -42,6 +44,7 @@ def get_user_details(update):
     return response
 
 
+# Get latest fault running number and returns a new fault number
 def get_fault_index(context):
     # Both dicts are not empty
     if all(dict_name in context.bot_data for dict_name in ["active_history", "resolved_history"]):
@@ -160,6 +163,9 @@ def get_history_version(update, context):
     # Standardise user input
     history_version = update.message.text.lower()
 
+    # Logging
+    logging.info(f'{get_user_details(update)}, Input: {history_version}')
+
     if history_version == "active":
         if "active_history" in context.bot_data:
             return context.bot_data["active_history"]
@@ -176,10 +182,14 @@ def get_history_version(update, context):
 def mark_resolve_active_fault(update, context):
     # Handle user input
     fault_id = context.args
+
     if not fault_id:
+        logging.info(f'{get_user_details(update)}, Error: No arguments provided')
         # Empty list
         update.message.reply_text("No arguments provided, please provide a valid fault id")
     elif "".join(word for word in fault_id).strip().isdigit():
+        logging.info(f'{get_user_details(update)}, Input: {fault_id}')
+
         # Integer passed, proceed to execute function
         fault_id = int("".join(word for word in fault_id).strip())
         # Move fault from active dict to resolved dict
@@ -189,21 +199,26 @@ def mark_resolve_active_fault(update, context):
                 context.bot_data["resolved_history"][fault_id] = context.bot_data["active_history"].pop(fault_id)
             else:
                 context.bot_data["resolved_history"] = {fault_id:context.bot_data["active_history"].pop(fault_id)}
+
+            logging.info(f'{get_user_details(update)}, Fault id: {fault_id} marked as resolved')
                 
             # Update everyone in the recipient list
             for chat_id in recipient_list:
                 try:
                     # Send message
-                    updater.bot.send_message(chat_id=chat_id, text=f"Fault id:{fault_id} has been marked as resolved")
+                    updater.bot.send_message(chat_id=chat_id, text=f"Fault id: {fault_id} has been marked as resolved")
+                    logging.info(f"Sent resolved fault notification to: {context.bot.get_chat(chat_id)['first_name']}")
                 except telegram.error.BadRequest:
                     # User have not initialize a chat with bot yet
                     logging.warning(f"User: {chat_id} have not talked to the bot before. Skipping.")
         except KeyError:
             # Key not found in active history dict
             update.message.reply_text("No such active fault id")
+            logging.info(f'{get_user_details(update)}, Error: Non integer argument provided')
     else:
         # Other data type passed, error
         update.message.reply_text("Unexpected arguments provided, please provide a valid fault id")
+        logging.info(f'{get_user_details(update)}, Error: Invalid arguments provided')
 
 
 mark_resolve_active_fault_handler = CommandHandler('resolved', mark_resolve_active_fault, Filters.user(user_id=set(int(user_id) for user_id in recipient_list)))
@@ -318,6 +333,8 @@ def send_details_to_maintenance_clerks(update, context):
             context.bot_data['active_history'][fault_id] = response
         else:
             context.bot_data["active_history"] = {fault_id: response}
+
+        logging.info(f'Saved new fault id: {fault_id} to bot_data')
     else:
         # Exit conversation
         update.message.reply_text("Cancelled")
