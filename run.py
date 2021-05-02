@@ -66,12 +66,12 @@ logging.info("Checking environment variables")
 environment_variables = ["bot_token", "recipient_list"]
 # Check if environment variables are loaded
 if any(item not in os.environ for item in environment_variables):
-    logging.critical("Environment variables not loaded")
+    logging.critical("Error: Environment variables not loaded")
     raise EnvironmentVariableError("Environment variables not loaded")
 
 # Check if environment variables are empty
 if any(item for item in environment_variables if not os.getenv(item)):
-    logging.critical("Environment variables are empty")
+    logging.critical("Error: Environment variables are empty")
     raise EnvironmentVariableError("Environment variables are empty")
 
 # Define & initialize bot
@@ -81,8 +81,10 @@ dispatcher = updater.dispatcher
 # Initialize bot_data dicts
 if "active_history" not in dispatcher.bot_data:
     dispatcher.bot_data['active_history'] = {}
-if "resolved_history" in dispatcher.bot_data:
+    logging.info(f'Info: Initializing active history dict')
+if "resolved_history" not in dispatcher.bot_data:
     dispatcher.bot_data['resolved_history'] = {}
+    logging.info(f'Info: Initializing resolved history dict')
 
 # Format recipient list
 recipient_list = os.getenv('recipient_list').split(",")
@@ -174,14 +176,18 @@ def get_history_version(update, context):
 
     if history_version == "active":
         if context.bot_data["active_history"]:
+            logging.info(f'{get_user_details(update)}, Info: Returned active history record')
             return context.bot_data["active_history"]
         else:
+            logging.info(f'{get_user_details(update)}, Info: Returned no active faults in record')
             return "No active faults, go ahead and submit a new fault and it will show up here"
     else:
         # Resolved history
         if context.bot_data["resolved_history"]:
+            logging.info(f'{get_user_details(update)}, Info: Returned resolved history record')
             return context.bot_data["resolved_history"]
         else:
+            logging.info(f'{get_user_details(update)}, Info: Returned no resolved faults in record')
             return "No resolved faults, go ahead and mark an active fault as resolved and it will show up here"
 
 
@@ -189,33 +195,36 @@ def mark_resolve_active_fault(update, context):
     # Handle user input
     fault_id = context.args
 
+    # Check if valid fault id was provided
     if not fault_id:
+        # No arguments provided
         logging.info(f'{get_user_details(update)}, Error: No arguments provided')
         # Empty list
         update.message.reply_text("No arguments provided, please provide a valid fault id")
     elif "".join(word for word in fault_id).strip().isdigit():
+        # Integer provided
         logging.info(f'{get_user_details(update)}, Input: {fault_id}')
 
-        # Integer passed, proceed to execute function
+        # Process integer validity
         fault_id = int("".join(word for word in fault_id).strip())
         # Move fault from active dict to resolved dict
         try:
             context.bot_data["resolved_history"][fault_id] = context.bot_data["active_history"].pop(fault_id)
             logging.info(f'{get_user_details(update)}, Fault id: {fault_id} marked as resolved')
-
-            # Update everyone in the recipient list
-            for chat_id in recipient_list:
-                try:
-                    # Send message
-                    updater.bot.send_message(chat_id=chat_id, text=f"Fault id: {fault_id} has been marked as resolved")
-                    logging.info(f"Sent resolved fault notification to: {context.bot.get_chat(chat_id)['first_name']}")
-                except telegram.error.BadRequest:
-                    # User have not initialize a chat with bot yet
-                    logging.warning(f"User: {chat_id} have not talked to the bot before. Skipping.")
         except KeyError:
             # Key not found in active history dict
             update.message.reply_text("No such active fault id")
             logging.info(f'{get_user_details(update)}, Error: Non integer argument provided')
+
+        # Update everyone in the recipient list
+        for chat_id in recipient_list:
+            try:
+                # Send message
+                updater.bot.send_message(chat_id=chat_id, text=f"Fault id: {fault_id} has been marked as resolved")
+                logging.info(f"Sent resolved fault notification to: {context.bot.get_chat(chat_id)['first_name']}")
+            except telegram.error.BadRequest:
+                # User have not initialize a chat with bot yet
+                logging.warning(f"User: {chat_id} have not talked to the bot before. Skipping.")
     else:
         # Other data type passed, error
         update.message.reply_text("Unexpected arguments provided, please provide a valid fault id")
@@ -292,7 +301,8 @@ def get_location_of_fault(update, context):
 
     # Save message object for later use
     context.user_data["fault_summary"] = message
-    
+    logging.info(f'Info: Saved fault summary into temp user_data')
+
     return 0
 
 
@@ -315,6 +325,10 @@ def send_details_to_maintenance_clerks(update, context):
                    f'{display_user_details(update)}\n'\
                    f'{context.user_data["fault_summary"].text_markdown_v2}'
 
+        # Save message into history
+        context.bot_data['active_history'][fault_id] = response
+        logging.info(f'Saved new fault under id: {fault_id} into bot_data')
+
         # Send information to specific people(s)
         for chat_id in recipient_list:
             try:
@@ -328,11 +342,6 @@ def send_details_to_maintenance_clerks(update, context):
 
         update.message.reply_text("Fault submitted, we will attend to you shortly")
         update.message.reply_text("Type /start to submit another fault")
-
-        # Save message into history
-        context.bot_data['active_history'][fault_id] = response
-
-        logging.info(f'Saved new fault id: {fault_id} to bot_data')
     else:
         # Exit conversation
         update.message.reply_text("Cancelled")
@@ -340,6 +349,7 @@ def send_details_to_maintenance_clerks(update, context):
 
     # Clear userdata
     context.user_data.clear()
+    logging.info(f'Info: Cleared temp user_data')
 
     return ConversationHandler.END
 
