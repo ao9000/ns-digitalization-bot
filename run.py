@@ -48,17 +48,17 @@ def get_user_details(update):
 # Get latest fault running number and returns a new fault number
 def get_fault_index(context):
     # Both dicts are not empty
-    if all(dict_name in context.bot_data for dict_name in ["active_history", "resolved_history"]):
-        index = len(context.bot_data["active_history"]) + len(context.bot_data["resolved_history"])
-    elif "active_history" in context.bot_data:
+    if all(context.bot_data[dict_name] for dict_name in ["active_history", "resolved_history"]):
+        index = len(context.bot_data['active_history']) + len(context.bot_data['resolved_history'])
+    elif context.bot_data["active_history"]:
         index = len(context.bot_data["active_history"])
-    elif "resolved_history" in context.bot_data:
+    elif context.bot_data["resolved_history"]:
         index = len(context.bot_data["resolved_history"])
     else:
         # Both dict empty
         index = 0
 
-    return index+1
+    return index + 1
 
 
 # Check if environment variables are loaded
@@ -74,10 +74,15 @@ if any(item for item in environment_variables if not os.getenv(item)):
     logging.critical("Environment variables are empty")
     raise EnvironmentVariableError("Environment variables are empty")
 
-
 # Define & initialize bot
 updater = Updater(token=os.getenv("bot_token"), use_context=True, persistence=PicklePersistence(filename='data'))
 dispatcher = updater.dispatcher
+
+# Initialize bot_data dicts
+if "active_history" not in dispatcher.bot_data:
+    dispatcher.bot_data['active_history'] = {}
+if "resolved_history" in dispatcher.bot_data:
+    dispatcher.bot_data['resolved_history'] = {}
 
 # Format recipient list
 recipient_list = os.getenv('recipient_list').split(",")
@@ -168,13 +173,13 @@ def get_history_version(update, context):
     logging.info(f'{get_user_details(update)}, Input: {history_version}')
 
     if history_version == "active":
-        if "active_history" in context.bot_data:
+        if context.bot_data["active_history"]:
             return context.bot_data["active_history"]
         else:
             return "No active faults, go ahead and submit a new fault and it will show up here"
     else:
         # Resolved history
-        if "resolved_history" in context.bot_data:
+        if context.bot_data["resolved_history"]:
             return context.bot_data["resolved_history"]
         else:
             return "No resolved faults, go ahead and mark an active fault as resolved and it will show up here"
@@ -195,14 +200,9 @@ def mark_resolve_active_fault(update, context):
         fault_id = int("".join(word for word in fault_id).strip())
         # Move fault from active dict to resolved dict
         try:
-            # Check if resolved_history dict exists
-            if "resolved_history" in context.bot_data:
-                context.bot_data["resolved_history"][fault_id] = context.bot_data["active_history"].pop(fault_id)
-            else:
-                context.bot_data["resolved_history"] = {fault_id:context.bot_data["active_history"].pop(fault_id)}
-
+            context.bot_data["resolved_history"][fault_id] = context.bot_data["active_history"].pop(fault_id)
             logging.info(f'{get_user_details(update)}, Fault id: {fault_id} marked as resolved')
-                
+
             # Update everyone in the recipient list
             for chat_id in recipient_list:
                 try:
@@ -330,10 +330,7 @@ def send_details_to_maintenance_clerks(update, context):
         update.message.reply_text("Type /start to submit another fault")
 
         # Save message into history
-        if "active_history" in context.bot_data:
-            context.bot_data['active_history'][fault_id] = response
-        else:
-            context.bot_data["active_history"] = {fault_id: response}
+        context.bot_data['active_history'][fault_id] = response
 
         logging.info(f'Saved new fault id: {fault_id} to bot_data')
     else:
