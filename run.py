@@ -1,6 +1,6 @@
 import os
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, InlineQueryResultArticle, InputTextMessageContent
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext, InlineQueryHandler
 from telegram.utils.helpers import escape_markdown
 
 # Define bot
@@ -25,6 +25,38 @@ def get_acknowledge_inline_button():
     return reply_markup
 
 
+def get_menu_inline_button():
+    inline_button = [
+        [
+            InlineKeyboardButton("Publish", switch_inline_query="adas"),
+            InlineKeyboardButton("Acknowledge", callback_data='Acknowledge')
+        ]
+    ]
+
+    reply_markup = InlineKeyboardMarkup(inline_button)
+
+    return reply_markup
+
+
+def handle_inline_query(update, context):
+    query = update.inline_query
+
+    print(query)
+
+    results = [
+        InlineQueryResultArticle(
+            id="123",
+            title="Forward Poll",
+            input_message_content=InputTextMessageContent(message_text="ELLO")
+        )
+    ]
+
+    update.inline_query.answer(results)
+
+
+inline_query_handler = InlineQueryHandler(handle_inline_query)
+
+
 # Commands
 # Start command
 def start(update, context):
@@ -34,7 +66,7 @@ def start(update, context):
 
     update.message.reply_text(text=text,
                               parse_mode="MarkdownV2",
-                              reply_markup=get_acknowledge_inline_button())
+                              reply_markup=get_menu_inline_button())
 
 
 start_handler = CommandHandler('start', start)
@@ -74,6 +106,7 @@ inline_button_handler = CallbackQueryHandler(inline_button_callback)
 
 
 dispatcher.add_handler(inline_button_handler)
+dispatcher.add_handler(inline_query_handler)
 dispatcher.add_handler(start_handler)
 
 
