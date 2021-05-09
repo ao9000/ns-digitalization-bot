@@ -10,10 +10,7 @@ class ReplitPersistence(BasePersistence):
 
     def get_bot_data(self):
         if "bot_data" in db:
-            return {
-                ["active_history"]: database.to_primitive(db['bot_data']['active_history']),
-                ["resolved_history"]: database.to_primitive(db['bot_data']['resolved_history']),
-            }
+            return database.to_primitive(db['bot_data'])
 
         return {}
 
