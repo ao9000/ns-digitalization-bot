@@ -203,6 +203,7 @@ def mark_resolve_active_fault(update, context):
     elif len(fault_id) > 1:
         # More than 1 arguments provided
         update.message.reply_text("More than 1 argument provided, please provide a valid fault id")
+        logging.info(f'{get_user_details(update)}, Error: More than 1 argument provided')
     elif fault_id[0].isdigit():
         # Integer provided
         logging.info(f'{get_user_details(update)}, Input: {fault_id}')
