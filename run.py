@@ -1,9 +1,14 @@
+import subprocess
+subprocess.call(["pip", "install", "python-telegram-bot"])
+
+
 import os
 import re
 import telegram
 from pytz import timezone
 import logging
 import datetime
+from ReplitPersistence import ReplitPersistence
 from telegram.ext import CommandHandler, MessageHandler, Updater, Filters, ConversationHandler, PicklePersistence
 from webserver import keep_alive
 from telegram.utils.helpers import escape_markdown
@@ -75,7 +80,7 @@ if any(item for item in environment_variables if not os.getenv(item)):
     raise EnvironmentVariableError("Environment variables are empty")
 
 # Define & initialize bot
-updater = Updater(token=os.getenv("bot_token"), use_context=True, persistence=PicklePersistence(filename='data'))
+updater = Updater(token=os.getenv("bot_token"), use_context=True, persistence=ReplitPersistence())
 dispatcher = updater.dispatcher
 
 # Initialize bot_data dicts
