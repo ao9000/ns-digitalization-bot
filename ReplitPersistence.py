@@ -1,16 +1,16 @@
 from telegram.ext import BasePersistence
-from replit import db
+from replit import db, database
 
 
 class ReplitPersistence(BasePersistence):
     def __init__(self):
         super(ReplitPersistence, self).__init__(store_user_data=False,
-                                               store_chat_data=False,
-                                               store_bot_data=True)
+                                                store_chat_data=False,
+                                                store_bot_data=True)
 
     def get_bot_data(self):
         if "bot_data" in db:
-            return db["bot_data"]
+            return database.to_primitive(db['bot_data'])
 
         return {}
 

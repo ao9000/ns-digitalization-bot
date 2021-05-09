@@ -2,6 +2,7 @@ import subprocess
 subprocess.call(["pip", "install", "python-telegram-bot"])
 
 
+from replit.database.database import ObservedDict
 import os
 import re
 import telegram
@@ -112,7 +113,7 @@ def PaginationHandlerMeta(func):
             elif isinstance(arg, telegram.ext.callbackcontext.CallbackContext):
                 context = arg
 
-        if isinstance(response, dict):
+        if isinstance(response, (dict, ObservedDict)):
             # Dict, need to check for pagination
             if len(f"{separator}".join(part for part in response.values())) > 4096:
                 # Get key references
