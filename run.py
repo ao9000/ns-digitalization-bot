@@ -57,7 +57,7 @@ def get_fault_index(context):
         # Both dict empty
         index = 0
 
-    return index + 1
+    return str(index + 1)
 
 
 # Check if environment variables are loaded
@@ -200,12 +200,15 @@ def mark_resolve_active_fault(update, context):
         logging.info(f'{get_user_details(update)}, Error: No arguments provided')
         # Empty list
         update.message.reply_text("No arguments provided, please provide a valid fault id")
-    elif "".join(word for word in fault_id).strip().isdigit():
+    elif len(fault_id) > 1:
+        # More than 1 arguments provided
+        update.message.reply_text("More than 1 argument provided, please provide a valid fault id")
+    elif fault_id[0].isdigit():
         # Integer provided
         logging.info(f'{get_user_details(update)}, Input: {fault_id}')
 
         # Process integer validity
-        fault_id = int("".join(word for word in fault_id).strip())
+        fault_id = str(fault_id[0])
         # Move fault from active dict to resolved dict
         try:
             context.bot_data["resolved_history"][fault_id] = context.bot_data["active_history"].pop(fault_id)
@@ -215,19 +218,20 @@ def mark_resolve_active_fault(update, context):
             update.message.reply_text("No such active fault id")
             logging.info(f'{get_user_details(update)}, Error: Non integer argument provided')
 
-        # Update everyone in the recipient list
-        for chat_id in recipient_list:
-            try:
-                # Send message
-                updater.bot.send_message(chat_id=chat_id, text=f"Fault id: {fault_id} has been marked as resolved")
-                logging.info(f"Sent resolved fault notification to: {context.bot.get_chat(chat_id)['first_name']}")
-            except telegram.error.BadRequest:
-                # User have not initialize a chat with bot yet
-                logging.warning(f"User: {chat_id} have not talked to the bot before. Skipping.")
+        else:
+            # Update everyone in the recipient list
+            for chat_id in recipient_list:
+                try:
+                    # Send message
+                    updater.bot.send_message(chat_id=chat_id, text=f"Fault id: {fault_id} has been marked as resolved")
+                    logging.info(f"Sent resolved fault notification to: {context.bot.get_chat(chat_id)['first_name']}")
+                except telegram.error.BadRequest:
+                    # User have not initialize a chat with bot yet
+                    logging.warning(f"User: {chat_id} have not talked to the bot before. Skipping.")
     else:
         # Other data type passed, error
-        update.message.reply_text("Unexpected arguments provided, please provide a valid fault id")
-        logging.info(f'{get_user_details(update)}, Error: Invalid arguments provided')
+        update.message.reply_text("Unexpected arguments type provided, please provide a valid fault id")
+        logging.info(f'{get_user_details(update)}, Error: Invalid arguments type provided')
 
 
 mark_resolve_active_fault_handler = CommandHandler('resolved', mark_resolve_active_fault, Filters.user(user_id=set(int(user_id) for user_id in recipient_list)))
