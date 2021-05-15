@@ -396,6 +396,12 @@ def error_insufficient_input(update, context):
     update.message.reply_text("Type /exit to cancel this conversation")
 
 
+def error_max_limit_input(update, context):
+    logging.info(f'{get_user_details(update)}, Error: Too many characters per message, must be <1k')
+    update.message.reply_text("Exceeded character limit. Please the fault below 500 characters")
+    update.message.reply_text("Type /exit to cancel this conversation")
+
+
 # User invalid command (Conversational)
 def error_command_input(update, context):
     logging.info(f'{get_user_details(update)}, Error: Invalid command (Conversational)')
@@ -426,6 +432,8 @@ conv_handler = ConversationHandler(
         MessageHandler((Filters.command & Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_user_cancelled),
         # Regex to match any character below 4 character count
         MessageHandler(Filters.regex(r'^.{1,4}$'), error_insufficient_input),
+            # Regex to match any character above 500 character count
+            MessageHandler(Filters.regex(r'^.{500,}$'), error_max_limit_input),
         # Match other commands
         MessageHandler((Filters.command & ~Filters.regex(re.compile(r'^(/exit)$', re.IGNORECASE))), error_command_input)
     ]
