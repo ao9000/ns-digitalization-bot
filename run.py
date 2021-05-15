@@ -419,13 +419,13 @@ conv_handler = ConversationHandler(
         # Gathering user information states
         0: [MessageHandler((Filters.text & ~Filters.command & Filters.regex(re.compile(r'^(Yes|Y|No|N)$', re.IGNORECASE))), send_details_to_maintenance_clerks)],
         # Type of fault
-        5: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_type_of_fault)],
+            5: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$') & ~Filters.regex(r'^.{500,}$')), get_type_of_fault)],
         # Description of fault
-        6: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_description_of_fault)],
+            6: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$') & ~Filters.regex(r'^.{500,}$')), get_description_of_fault)],
         # Location of fault
-        7: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$')), get_location_of_fault)],
+            7: [MessageHandler((Filters.text & ~Filters.command & ~Filters.regex(r'^.{1,4}$') & ~Filters.regex(r'^.{500,}$')), get_location_of_fault)],
         # Selecting history version
-        100: [MessageHandler(Filters.text & ~Filters.command & Filters.regex(re.compile(r'^(Active|Resolved)$', re.IGNORECASE)), get_history_version)]
+            100: [MessageHandler(Filters.text & ~Filters.command & Filters.regex(re.compile(r'^(Active|Resolved)$', re.IGNORECASE)), get_history_version)]
     },
     fallbacks=[
         # User cancelled command
