@@ -13,7 +13,7 @@ def get_menu_inline_buttons(admin, poll_id):
     if admin:
         inline_button = [
             [
-                InlineKeyboardButton("Publish", switch_inline_query="adas"),
+                InlineKeyboardButton("Publish", switch_inline_query=poll_id),
             ]
         ]
     else:
@@ -31,22 +31,23 @@ def get_menu_inline_buttons(admin, poll_id):
 def inline_query_publish_callback(update, context):
     query = update.inline_query
 
-    # Retrieve inline message tied to the user
-    message = context.bot_data[query.from_user.id]
-    # Get owner id from original message
-    owner_id = str(message.chat.id)
+    if query.query in context.bot_data:
+        # Retrieve inline message tied to the user
+        message = context.bot_data[query.query]
+        # Get owner id from original message
+        owner_id = str(message.chat.id)
 
-    results = [
-        InlineQueryResultArticle(
-            id=message.message_id,
-            title="Publish Poll",
-            input_message_content=InputTextMessageContent(message_text=message.text_markdown_v2,
-                                                          parse_mode="MarkdownV2"),
-            reply_markup=get_menu_inline_buttons(admin=False, poll_id=owner_id)
-        )
-    ]
+        results = [
+            InlineQueryResultArticle(
+                id=message.message_id,
+                title="Publish Poll",
+                input_message_content=InputTextMessageContent(message_text=message.text_markdown_v2,
+                                                              parse_mode="MarkdownV2"),
+                reply_markup=get_menu_inline_buttons(admin=False, poll_id=owner_id)
+            )
+        ]
 
-    update.inline_query.answer(results)
+        update.inline_query.answer(results)
 
 
 inline_query_publish_callback_handler = InlineQueryHandler(inline_query_publish_callback)
