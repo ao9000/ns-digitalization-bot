@@ -5,6 +5,27 @@ This project is a Telegram implementation of a fault reporting bot in Python
 This bot aims to ease availability choke point faced when a single user is responsible for handling newly reported faults.
 Acting like a middleman, the bot can then swiftly disseminate newly reported faults to the appropriate personnel.
 
+## Branches
+- infrastructure-fault-reporting-bot-deployment
+
+Similar to ```infrastructure-fault-reporting-bot``` with the inclusion of Replit classes to support deployment on Replit
+
+- infrastructure-fault-reporting-bot (Current branch)
+
+Infrastructure fault reporting Telegram bot hosted locally
+
+- recall-check-bot
+
+Recall check Telegram bot hosted locally (Discontinued)
+
+- vehicle-fault-reporting-bot-deployment
+
+Similar to ```vehicle-fault-reporting-bot``` with the inclusion of Replit classes to support deployment on Replit (Discontinued)
+
+- vehicle-fault-reporting-bot
+
+Vehicle fault reporting Telegram bot hosted locally (Discontinued)
+
 ## Screenshots
 Submitting a new fault (/start)
 <br />
