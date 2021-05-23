@@ -18,7 +18,7 @@
 
     Requires an environment file with the following variables:
         1. bot_token - API token of the bot, can be created via @BotFather
-        2. recipient_list - Telegram chat id for users who wants to be notified by the bot for new faults (Separated by comma for multiple users)
+        2. recipient_list - Telegram chat id for users who want to be notified by the bot for new faults (Separated by comma for multiple users)
 """
 
 # Import statements
