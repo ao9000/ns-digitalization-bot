@@ -1,3 +1,7 @@
+"""
+    Simple Flask webserver
+"""
+
 from flask import Flask
 from threading import Thread
 

@@ -1,3 +1,10 @@
+"""
+    3rd party persistence class to store data in Replit key storage database
+
+    Q: Why can't we use pickle persistence instead?
+    A: From my experience, pickle persistence experience data loss when hosting on Replit. Currently not sure why, seems like a internal reset of data every week or so
+"""
+
 from telegram.ext import BasePersistence
 from replit import db, database
 
